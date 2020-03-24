@@ -411,6 +411,10 @@ fn parse_address(address: &str) -> Result<EmailAddress, Error> {
     } else {
         address
     };
+    //
+    // Deals with cases of '@' in `local-part`, if it is quoted they are legal, if
+    // not then they'll return an `InvalidCharacter` error later.
+    //
     let parts = address.rsplitn(2, AT).collect::<Vec<&str>>();
     if parts.len() != 2 {
         Error::MissingSeparator.into()
@@ -427,7 +431,11 @@ fn parse_local_part(part: &str) -> Result<(), Error> {
     } else if part.len() > LOCAL_PART_MAX_LENGTH {
         Error::LocalPartTooLong.into()
     } else if part.starts_with(DQUOTE) && part.ends_with(DQUOTE) {
-        parse_quoted_local_part(&part[1..part.len() - 1])
+        if part.len() == 2 {
+            Error::LocalPartEmpty.into()
+        } else {
+            parse_quoted_local_part(&part[1..part.len() - 1])
+        }
     } else {
         parse_unquoted_local_part(part)
     }
@@ -738,6 +746,8 @@ mod tests {
         is_valid("коля@пример.рф", Some("Russian"));
     }
 
+    // ------------------------------------------------------------------------------------------------
+
     fn expect(address: &str, error: Error, test_case: Option<&str>) {
         if let Some(test_case) = test_case {
             println!(">> test case: {}", test_case);
@@ -818,5 +828,28 @@ mod tests {
             Error::SubDomainTooLong,
             Some("domain part is longer than 64 characters"),
         );
+    }
+
+    #[test]
+    fn test_bad_example_02() {
+        expect(
+            "@example.com",
+            Error::LocalPartEmpty,
+            Some("local-part is empty"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_03() {
+        expect(
+            "\"\"@example.com",
+            Error::LocalPartEmpty,
+            Some("local-part is empty"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_04() {
+        expect("simon@", Error::DomainEmpty, Some("domain is empty"));
     }
 }
