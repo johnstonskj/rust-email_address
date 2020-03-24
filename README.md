@@ -26,10 +26,16 @@ assert_eq!(
 
 ## Specifications
 
+1. RFC 1123: [_Requirements for Internet Hosts -- Application and Support_](https://tools.ietf.org/html/rfc1123),
+   IETF,Oct 1989.
 1. RFC 3629: [_UTF-8, a transformation format of ISO 10646_](https://tools.ietf.org/html/rfc3629),
    IETF, Nov 2003.
 1. RFC 3696: [_Application Techniques for Checking and Transformation of
    Names_](https://tools.ietf.org/html/rfc3696), IETF, Feb 2004.
+1. RFC 4291 [_IP Version 6 Addressing Architecture_](https://tools.ietf.org/html/rfc4291),
+   IETF, Feb 2006.
+1. RFC 5234: [_Augmented BNF for Syntax Specifications: ABNF_](https://tools.ietf.org/html/rfc5234),
+   IETF, Jan 2008.
 1. RFC 5321: [_Simple Mail Transfer Protocol_](https://tools.ietf.org/html/rfc5321),
    IETF, Oct 2008.
 1. RFC 5322: [_Internet Message Format_](https://tools.ietf.org/html/rfc5322), I
@@ -38,9 +44,9 @@ assert_eq!(
    Framework_](https://tools.ietf.org/html/rfc5890), IETF, Aug 2010.
 1. RFC 6531: [_SMTP Extension for Internationalized Email_](https://tools.ietf.org/html/rfc6531),
    IETF, Feb 2012
-1. RFC 5234: [_Augmented BNF for Syntax Specifications: ABNF_](https://tools.ietf.org/html/rfc5234),
-   IETF, Jan 2008.
-
+1. RFC 6532: [_Internationalized Email Headers_](https://tools.ietf.org/html/rfc6532),
+   IETF, Feb 2012.
+   
 ## Changes
 
 **Version 0.1.0**

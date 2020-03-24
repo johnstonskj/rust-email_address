@@ -43,10 +43,16 @@ assert_eq!(
 
 # Specifications
 
+1. RFC 1123: [_Requirements for Internet Hosts -- Application and Support_](https://tools.ietf.org/html/rfc1123),
+   IETF,Oct 1989.
 1. RFC 3629: [_UTF-8, a transformation format of ISO 10646_](https://tools.ietf.org/html/rfc3629),
    IETF, Nov 2003.
 1. RFC 3696: [_Application Techniques for Checking and Transformation of
    Names_](https://tools.ietf.org/html/rfc3696), IETF, Feb 2004.
+1. RFC 4291 [_IP Version 6 Addressing Architecture_](https://tools.ietf.org/html/rfc4291),
+   IETF, Feb 2006.
+1. RFC 5234: [_Augmented BNF for Syntax Specifications: ABNF_](https://tools.ietf.org/html/rfc5234),
+   IETF, Jan 2008.
 1. RFC 5321: [_Simple Mail Transfer Protocol_](https://tools.ietf.org/html/rfc5321),
    IETF, Oct 2008.
 1. RFC 5322: [_Internet Message Format_](https://tools.ietf.org/html/rfc5322), I
@@ -55,8 +61,8 @@ assert_eq!(
    Framework_](https://tools.ietf.org/html/rfc5890), IETF, Aug 2010.
 1. RFC 6531: [_SMTP Extension for Internationalized Email_](https://tools.ietf.org/html/rfc6531),
    IETF, Feb 2012
-1. RFC 5234: [_Augmented BNF for Syntax Specifications: ABNF_](https://tools.ietf.org/html/rfc5234),
-   IETF, Jan 2008.
+1. RFC 6532: [_Internationalized Email Headers_](https://tools.ietf.org/html/rfc6532),
+   IETF, Feb 2012.
 
 From RFC 5322: §3.2.1. [Quoted characters](https://tools.ietf.org/html/rfc5322#section-3.2.1):
 
@@ -146,15 +152,51 @@ dtext           =   %d33-90 /          ; Printable US-ASCII
 RFC 3696, §3. [Restrictions on email addresses](https://tools.ietf.org/html/rfc3696#section-3)
 describes in detail the quoting of characters in an address.
 
+## Unicode
+
 RFC 6531, §3.3. [Extended Mailbox Address Syntax](https://tools.ietf.org/html/rfc6531#section-3.3)
 extends the rules above for non-ASCII character sets.
 
+```ebnf
+sub-domain   =/  U-label
+    ; extend the definition of sub-domain in RFC 5321, Section 4.1.2
+
+atext   =/  UTF8-non-ascii
+    ; extend the implicit definition of atext in
+    ; RFC 5321, Section 4.1.2, which ultimately points to
+    ; the actual definition in RFC 5322, Section 3.2.3
+
+qtextSMTP  =/ UTF8-non-ascii
+    ; extend the definition of qtextSMTP in RFC 5321, Section 4.1.2
+
+esmtp-value  =/ UTF8-non-ascii
+    ; extend the definition of esmtp-value in RFC 5321, Section 4.1.2
+```
+
+RFC 6532: §3.1 [UTF-8 Syntax and Normalization](https://tools.ietf.org/html/rfc6532#section-3.1),
+and §3.2 [Syntax Extensions to RFC 5322](https://tools.ietf.org/html/rfc6532#section-3.2) extend
+the syntax above with:
 
 ```ebnf
 UTF8-non-ascii  =   UTF8-2 / UTF8-3 / UTF8-4
+
+...
+
+VCHAR   =/  UTF8-non-ascii
+
+ctext   =/  UTF8-non-ascii
+
+atext   =/  UTF8-non-ascii
+
+qtext   =/  UTF8-non-ascii
+
+text    =/  UTF8-non-ascii
+              ; note that this upgrades the body to UTF-8
+
+dtext   =/  UTF8-non-ascii
 ```
 
-This refers to RFC 6529 §4. [Syntax of UTF-8 Byte Sequences](https://tools.ietf.org/html/rfc3629#section-4):
+These in turn refer to RFC 6529 §4. [Syntax of UTF-8 Byte Sequences](https://tools.ietf.org/html/rfc3629#section-4):
 
 > A UTF-8 string is a sequence of octets representing a sequence of UCS
 > characters.  An octet sequence is valid UTF-8 only if it matches the
@@ -172,7 +214,6 @@ This refers to RFC 6529 §4. [Syntax of UTF-8 Byte Sequences](https://tools.ietf
                  %xF4 %x80-8F 2( UTF8-tail )
    UTF8-tail   = %x80-BF
 ```
-
 
 Comments in addresses are discussed in RFC 5322 Appendix A.5. [White Space, Comments, and Other
 Oddities](https://tools.ietf.org/html/rfc5322#appendix-A.5).
@@ -243,7 +284,8 @@ pub struct EmailAddress(String);
 // ------------------------------------------------------------------------------------------------
 
 const LOCAL_PART_MAX_LENGTH: usize = 64;
-const DOMAIN_MAX_LENGTH: usize = 255;
+const DOMAIN_MAX_LENGTH: usize = 254; // see: https://www.rfc-editor.org/errata_search.php?rfc=3696&eid=1690
+const SUB_DOMAIN_MAX_LENGTH: usize = 63;
 
 #[allow(dead_code)]
 const CR: char = '\r';
@@ -264,6 +306,8 @@ const LPAREN: char = '(';
 const RPAREN: char = ')';
 const LT: char = '<';
 const GT: char = '>';
+
+const UTF8_START: char = '\u{0080}';
 
 const MAILTO_URI_PREFIX: &str = "mailto:";
 
@@ -289,7 +333,7 @@ impl Display for Error {
             Error::DomainInvalidSeparator => {
                 write!(f, "Invalid placement of the domain separator '{:?}", DOT)
             }
-            Error::InvalidIPAddress => write!(f, "Invalid IP Address specified for doamin."),
+            Error::InvalidIPAddress => write!(f, "Invalid IP Address specified for domain."),
             Error::UnbalancedQuotes => write!(f, "Quotes around the local-part are unbalanced."),
             Error::InvalidComment => write!(f, "A comment was badly formed."),
         }
@@ -390,14 +434,15 @@ fn parse_local_part(part: &str) -> Result<(), Error> {
 }
 
 fn parse_quoted_local_part(part: &str) -> Result<(), Error> {
-    if part.is_ascii() && is_qcontent(part) {
+    if is_qcontent(part) {
         return Ok(());
+    } else {
     }
     Error::InvalidCharacter.into()
 }
 
 fn parse_unquoted_local_part(part: &str) -> Result<(), Error> {
-    if part.is_ascii() && is_dot_atom_text(part) {
+    if is_dot_atom_text(part) {
         return Ok(());
     }
     Error::InvalidCharacter.into()
@@ -416,14 +461,15 @@ fn parse_domain(part: &str) -> Result<(), Error> {
 }
 
 fn parse_text_domain(part: &str) -> Result<(), Error> {
-    if part.is_ascii() && is_dot_atom_text(part) {
+    // TODO: check sub-domain-len
+    if is_dot_atom_text(part) {
         return Ok(());
     }
     Error::InvalidCharacter.into()
 }
 
 fn parse_literal_domain(part: &str) -> Result<(), Error> {
-    if part.is_ascii() && part.chars().all(is_dtext_char) {
+    if part.chars().all(is_dtext_char) {
         return Ok(());
     }
     Error::InvalidCharacter.into()
@@ -452,6 +498,28 @@ fn is_atext(c: char) -> bool {
         || c == '|'
         || c == '}'
         || c == '~'
+        || is_uchar(c)
+}
+
+#[allow(dead_code)]
+fn is_special(c: char) -> bool {
+    c == '('
+        || c == ')'
+        || c == '<'
+        || c == '>'
+        || c == '['
+        || c == ']'
+        || c == ':'
+        || c == ';'
+        || c == '@'
+        || c == '\\'
+        || c == ','
+        || c == '.'
+        || c == DQUOTE
+}
+
+fn is_uchar(c: char) -> bool {
+    c >= UTF8_START
 }
 
 fn is_atom(s: &str) -> bool {
@@ -470,13 +538,8 @@ fn is_wsp(c: char) -> bool {
     c == SP || c == HTAB
 }
 
-#[allow(dead_code)]
-fn is_ctext_char(c: char) -> bool {
-    (c >= '\x21' && c == '\x27') || (c >= '\x2A' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E')
-}
-
 fn is_qtext_char(c: char) -> bool {
-    c == '\x21' || (c >= '\x23' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E')
+    c == '\x21' || (c >= '\x23' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E') || is_uchar(c)
 }
 
 fn is_qcontent(s: &str) -> bool {
@@ -498,6 +561,11 @@ fn is_qcontent(s: &str) -> bool {
 
 fn is_dtext_char(c: char) -> bool {
     (c >= '\x21' && c <= '\x5A') || (c >= '\x5E' && c <= '\x7E')
+}
+
+#[allow(dead_code)]
+fn is_ctext_char(c: char) -> bool {
+    (c >= '\x21' && c == '\x27') || (c >= '\x2A' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E')
 }
 
 #[allow(dead_code)]
@@ -603,6 +671,58 @@ mod tests {
     #[test]
     fn test_good_examples_from_wikipedia_16() {
         assert!(EmailAddress::is_valid("jsmith@[IPv6:2001:db8::1]"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_17() {
+        assert!(EmailAddress::is_valid(
+            "user+mailbox/department=shipping@example.com"
+        ));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_18() {
+        assert!(EmailAddress::is_valid("!#$%&'*+-/=?^_`.{|}~@example.com"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_19() {
+        assert!(EmailAddress::is_valid("\"Abc@def\"@example.com"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_20() {
+        assert!(EmailAddress::is_valid("\"Joe.\\\\Blow\"@example.com"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_21() {
+        assert!(EmailAddress::is_valid("用户@例子.广告"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_22() {
+        assert!(EmailAddress::is_valid("अजय@डाटा.भारत"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_23() {
+        assert!(EmailAddress::is_valid("квіточка@пошта.укр"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_24() {
+        assert!(EmailAddress::is_valid("θσερ@εχαμπλε.ψομ"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_25() {
+        assert!(EmailAddress::is_valid("Dörte@Sörensen.example.com"));
+    }
+
+    #[test]
+    fn test_good_examples_from_wikipedia_26() {
+        assert!(EmailAddress::is_valid("коля@пример.рф"));
     }
 
     #[test]
