@@ -54,3 +54,4 @@ assert_eq!(
 1. Support comments.
 1. `to_uri` needs to support URI encoding.
 1. Support line-feed and whitespace rules.
+1. Does not parse _into_ `domain-literal` values, only does surface syntax check.
