@@ -53,6 +53,8 @@ assert_eq!(
 
 * Added UTF-8 support.
 * Added more test cases, fixing defects in parsing.
+* Method `to_uri` now supports URI encoding the address as a part of the URI.
+* Added `is_valid_local_part` and `is_valid_domain` methods.
 
 **Version 0.1.0**
 
@@ -62,6 +64,5 @@ assert_eq!(
 ## TODO
 
 1. Support comments.
-1. `to_uri` needs to support URI encoding.
 1. Support line-feed and whitespace rules.
 1. Does not parse _into_ `domain-literal` values, only does surface syntax check.

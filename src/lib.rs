@@ -31,7 +31,7 @@ assert_eq!(
 
 assert_eq!(
     email.to_uri(),
-    "mailto:johnstonsk@gmail.com".to_string()
+    "mailto:johnstonsk%40gmail.com".to_string()
 );
 
 assert_eq!(
@@ -372,7 +372,7 @@ impl FromStr for EmailAddress {
 
 impl EmailAddress {
     ///
-    /// Determine whether the passed string is a valid email address. Note this is equivalent to
+    /// Determine whether the `address` string is a valid email address. Note this is equivalent to
     /// the following:
     ///
     /// ```rust
@@ -383,18 +383,40 @@ impl EmailAddress {
     /// ```
     ///
     pub fn is_valid(address: &str) -> bool {
-        Self::from_str(&address).is_ok()
+        Self::from_str(address).is_ok()
     }
 
     ///
-    /// Return this email address formatted as a URI.
+    /// Determine whether the `part` string would be a valid `local-part` if it were in an
+    /// email address.
+    ///
+    pub fn is_valid_local_part(part: &str) -> bool {
+        parse_local_part(part).is_ok()
+    }
+
+    ///
+    /// Determine whether the `part` string would be a valid `domain` if it were in an
+    /// email address.
+    ///
+    pub fn is_valid_domain(part: &str) -> bool {
+        parse_domain(part).is_ok()
+    }
+
+    ///
+    /// Return this email address formatted as a URI. This will also URI-encode the email
+    /// address itself. So, `name@example.org` becomes `mailto:name%40example.org`.
     ///
     pub fn to_uri(&self) -> String {
-        format!("{}{}", MAILTO_URI_PREFIX, self)
+        let encoded = encode(&self.0);
+        format!("{}{}", MAILTO_URI_PREFIX, encoded)
     }
 
     ///
-    /// Return a string formatted as a display email with the user name.
+    /// Return a string formatted as a display email with the user name. This is commonly used
+    /// in email headers and other locations where a display name is associated with the
+    /// address.
+    ///
+    /// So, `("name@example.org", "My Name")` becomes `"My Name <name@example.org>"`.
     ///
     pub fn to_display(&self, display_name: &str) -> String {
         format!("{} <{}>", display_name, self)
@@ -404,6 +426,40 @@ impl EmailAddress {
 // ------------------------------------------------------------------------------------------------
 // Private Functions
 // ------------------------------------------------------------------------------------------------
+
+fn encode(address: &str) -> String {
+    let mut result = String::new();
+    for c in address.chars() {
+        if is_uri_reserved(c) {
+            result.push_str(&format!("%{:02X}", c as u8))
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+fn is_uri_reserved(c: char) -> bool {
+    c == '!'
+        || c == '#'
+        || c == '$'
+        || c == '%'
+        || c == '&'
+        || c == '\''
+        || c == '('
+        || c == ')'
+        || c == '*'
+        || c == '+'
+        || c == ','
+        || c == '/'
+        || c == ':'
+        || c == ';'
+        || c == '='
+        || c == '?'
+        || c == '@'
+        || c == '['
+        || c == ']'
+}
 
 fn parse_address(address: &str) -> Result<EmailAddress, Error> {
     let address = if address.starts_with(LT) && address.ends_with(GT) {
