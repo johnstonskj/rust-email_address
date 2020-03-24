@@ -9,7 +9,11 @@ A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newt
 [![travis.ci](https://travis-ci.org/johnstonskj/rust-email_address.svg?branch=master)](https://travis-ci.org/johnstonskj/rust-email_address)
 [![GitHub stars](https://img.shields.io/github/stars/johnstonskj/rust-email_address.svg)](https://github.com/johnstonskj/rust-email_address/stargazers)
 
-TBD
+Primarily for validation, the `EmailAddress` type is constructed with `FromStr::from_str` which will raise any
+parsing errors. Prior to constructions the functions `is_valid`, `is_valid_local_part`, and `is_valid_domain` may
+also be used to test for validity without constructing an instance. This supports all of the RFC ASCII and UTF-8
+character set rules, quoted and unquoted local parts but does not yet support all of the productions required for SMTP
+headers; folding whitespace, comments, etc.
 
 ## Example
 
