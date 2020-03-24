@@ -2,17 +2,26 @@
 name = "email_address"
 version = "0.1.0"
 authors = ["Simon Johnston <johnstonskj@gmail.com>"]
-description = "Provides a new type for validation of email addresses"
+description = "A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newtype. "
+documentation = "https://docs.rs/email_address/"
+repository = "https://github.com/johnstonskj/rust-email_address.git"
 edition = "2018"
 license = "MIT"
 readme = "README.md"
 publish = true
+
+[package.metadata.docs.rs]
+# This only builds a single target for documentation.
+targets = ["x86_64-unknown-linux-gnu"]
+
+[badges.travis-ci]
+branch = "master"
+repository = "johnstonskj/rust-email_address"
 
 [features]
 default = ["serde_support"]
 serde_support = ["serde"]
 
 [dependencies]
-
-# Optional dependencies
 serde = { optional = true, version = "1.0", features = ["derive"] }
+
