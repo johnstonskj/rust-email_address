@@ -247,8 +247,6 @@ pub enum Error {
     InvalidCharacter,
     /// The separator character between `local-part` and `domain` (character: '@') was missing.
     MissingSeparator,
-    /// More than one separator character (character: '@') was found.
-    TooManySeparators,
     /// The `local-part` is an empty string.
     LocalPartEmpty,
     /// The `local-part` is is too long.
@@ -257,6 +255,8 @@ pub enum Error {
     DomainEmpty,
     /// The `domain` is is too long.
     DomainTooLong,
+    /// A `sub-domain` within the `domain` is is too long.
+    SubDomainTooLong,
     /// Too few `sub-domain`s in `domain`.
     DomainTooFew,
     /// Invalid placement of the domain separator (character: '.').
@@ -325,10 +325,12 @@ impl Display for Error {
             Error::DomainTooLong => {
                 write!(f, "Domain is too long. Length limit: {}", DOMAIN_MAX_LENGTH)
             }
+            Error::SubDomainTooLong => write!(
+                f,
+                "A sub-domain is too long. Length limit: {}",
+                SUB_DOMAIN_MAX_LENGTH
+            ),
             Error::MissingSeparator => write!(f, "Missing separator character '{}'.", AT),
-            Error::TooManySeparators => {
-                write!(f, "Found more than one separator character '{}'.", AT)
-            }
             Error::DomainTooFew => write!(f, "Too few parts in the domain"),
             Error::DomainInvalidSeparator => {
                 write!(f, "Invalid placement of the domain separator '{:?}", DOT)
@@ -409,15 +411,13 @@ fn parse_address(address: &str) -> Result<EmailAddress, Error> {
     } else {
         address
     };
-    let parts = address.split(AT).collect::<Vec<&str>>();
-    match parts.len() {
-        l if l < 2 => Error::MissingSeparator.into(),
-        l if l > 2 => Error::TooManySeparators.into(),
-        _ => {
-            parse_local_part(parts.first().unwrap())?;
-            parse_domain(parts.last().unwrap())?;
-            Ok(EmailAddress(address.to_string()))
-        }
+    let parts = address.rsplitn(2, AT).collect::<Vec<&str>>();
+    if parts.len() != 2 {
+        Error::MissingSeparator.into()
+    } else {
+        parse_local_part(parts.last().unwrap())?;
+        parse_domain(parts.first().unwrap())?;
+        Ok(EmailAddress(address.to_string()))
     }
 }
 
@@ -451,7 +451,7 @@ fn parse_unquoted_local_part(part: &str) -> Result<(), Error> {
 fn parse_domain(part: &str) -> Result<(), Error> {
     if part.is_empty() {
         Error::DomainEmpty.into()
-    } else if part.len() > LOCAL_PART_MAX_LENGTH {
+    } else if part.len() > DOMAIN_MAX_LENGTH {
         Error::DomainTooLong.into()
     } else if part.starts_with(LBRACKET) && part.ends_with(RBRACKET) {
         parse_literal_domain(&part[1..part.len() - 1])
@@ -461,8 +461,12 @@ fn parse_domain(part: &str) -> Result<(), Error> {
 }
 
 fn parse_text_domain(part: &str) -> Result<(), Error> {
-    // TODO: check sub-domain-len
     if is_dot_atom_text(part) {
+        for sub_part in part.split(DOT) {
+            if sub_part.len() > SUB_DOMAIN_MAX_LENGTH {
+                return Error::SubDomainTooLong.into();
+            }
+        }
         return Ok(());
     }
     Error::InvalidCharacter.into()
@@ -581,212 +585,238 @@ fn is_ctext(s: &str) -> bool {
 mod tests {
     use super::*;
 
+    fn is_valid(address: &str, test_case: Option<&str>) {
+        if let Some(test_case) = test_case {
+            println!(">> test case: {}", test_case);
+            println!("     <{}>", address);
+        } else {
+            println!(">> <{}>", address);
+        }
+        assert!(EmailAddress::is_valid(address));
+    }
+
     #[test]
     fn test_good_examples_from_wikipedia_01() {
-        assert!(EmailAddress::is_valid("simple@example.com"));
+        is_valid("simple@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_02() {
-        assert!(EmailAddress::is_valid("very.common@example.com"));
+        is_valid("very.common@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_03() {
-        assert!(EmailAddress::is_valid(
-            "disposable.style.email.with+symbol@example.com"
-        ));
+        is_valid("disposable.style.email.with+symbol@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_04() {
-        assert!(EmailAddress::is_valid(
-            "other.email-with-hyphen@example.com"
-        ));
+        is_valid("other.email-with-hyphen@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_05() {
-        assert!(EmailAddress::is_valid("fully-qualified-domain@example.com"));
+        is_valid("fully-qualified-domain@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_06() {
-        // may go to user.name@example.com inbox depending on mail server
-        assert!(EmailAddress::is_valid("user.name+tag+sorting@example.com"));
+        is_valid(
+            "user.name+tag+sorting@example.com",
+            Some(" may go to user.name@example.com inbox depending on mail server"),
+        );
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_07() {
-        // one-letter local-part
-        assert!(EmailAddress::is_valid("x@example.com"));
+        is_valid("x@example.com", Some("one-letter local-part"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_08() {
-        assert!(EmailAddress::is_valid("example-indeed@strange-example.com"));
+        is_valid("example-indeed@strange-example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_09() {
-        // local domain name with no TLD, although ICANN highly discourages dotless email addresses
-        assert!(EmailAddress::is_valid("admin@mailserver1"));
+        is_valid("admin@mailserver1", Some("local domain name with no TLD, although ICANN highly discourages dotless email addresses"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_10() {
-        // see the List of Internet top-level domains
-        assert!(EmailAddress::is_valid("example@s.example"));
+        is_valid(
+            "example@s.example",
+            Some("see the List of Internet top-level domains"),
+        );
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_11() {
-        // space between the quotes
-        assert!(EmailAddress::is_valid("\" \"@example.org"));
+        is_valid("\" \"@example.org", Some("space between the quotes"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_12() {
-        // quoted double dot
-        assert!(EmailAddress::is_valid("\"john..doe\"@example.org"));
+        is_valid("\"john..doe\"@example.org", Some("quoted double dot"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_13() {
-        // bangified host route used for uucp mailers
-        assert!(EmailAddress::is_valid("mailhost!username@example.org"));
+        is_valid(
+            "mailhost!username@example.org",
+            Some("bangified host route used for uucp mailers"),
+        );
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_14() {
-        // % escaped mail route to user@example.com via example.org
-        assert!(EmailAddress::is_valid("user%example.com@example.org"));
+        is_valid(
+            "user%example.com@example.org",
+            Some("% escaped mail route to user@example.com via example.org"),
+        );
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_15() {
-        assert!(EmailAddress::is_valid("jsmith@[192.168.2.1]"));
+        is_valid("jsmith@[192.168.2.1]", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_16() {
-        assert!(EmailAddress::is_valid("jsmith@[IPv6:2001:db8::1]"));
+        is_valid("jsmith@[IPv6:2001:db8::1]", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_17() {
-        assert!(EmailAddress::is_valid(
-            "user+mailbox/department=shipping@example.com"
-        ));
+        is_valid("user+mailbox/department=shipping@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_18() {
-        assert!(EmailAddress::is_valid("!#$%&'*+-/=?^_`.{|}~@example.com"));
+        is_valid("!#$%&'*+-/=?^_`.{|}~@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_19() {
-        assert!(EmailAddress::is_valid("\"Abc@def\"@example.com"));
+        // '@' is allowed in a quoted local part. Sorry.
+        is_valid("\"Abc@def\"@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_20() {
-        assert!(EmailAddress::is_valid("\"Joe.\\\\Blow\"@example.com"));
+        is_valid("\"Joe.\\\\Blow\"@example.com", None);
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_21() {
-        assert!(EmailAddress::is_valid("用户@例子.广告"));
+        is_valid("用户@例子.广告", Some("Chinese"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_22() {
-        assert!(EmailAddress::is_valid("अजय@डाटा.भारत"));
+        is_valid("अजय@डाटा.भारत", Some("Hindi"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_23() {
-        assert!(EmailAddress::is_valid("квіточка@пошта.укр"));
+        is_valid("квіточка@пошта.укр", Some("Ukranian"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_24() {
-        assert!(EmailAddress::is_valid("θσερ@εχαμπλε.ψομ"));
+        is_valid("θσερ@εχαμπλε.ψομ", Some("Greek"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_25() {
-        assert!(EmailAddress::is_valid("Dörte@Sörensen.example.com"));
+        is_valid("Dörte@Sörensen.example.com", Some("German"));
     }
 
     #[test]
     fn test_good_examples_from_wikipedia_26() {
-        assert!(EmailAddress::is_valid("коля@пример.рф"));
+        is_valid("коля@пример.рф", Some("Russian"));
+    }
+
+    fn expect(address: &str, error: Error, test_case: Option<&str>) {
+        if let Some(test_case) = test_case {
+            println!(">> test case: {}", test_case);
+            println!("     <{}>, expecting {:?}", address, error);
+        } else {
+            println!(">> <{}>, expecting {:?}", address, error);
+        }
+        assert_eq!(EmailAddress::from_str(address), error.into());
     }
 
     #[test]
     fn test_bad_examples_from_wikipedia_00() {
-        //  (no @ character)
-        assert_eq!(
-            EmailAddress::from_str("Abc.example.com"),
-            Error::MissingSeparator.into()
+        expect(
+            "Abc.example.com",
+            Error::MissingSeparator,
+            Some("no @ character"),
         );
     }
 
     #[test]
     fn test_bad_examples_from_wikipedia_01() {
-        //  (only one @ is allowed outside quotation marks)
-        assert_eq!(
-            EmailAddress::from_str("A@b@c@example.com"),
-            Error::TooManySeparators.into()
+        expect(
+            "A@b@c@example.com",
+            Error::InvalidCharacter,
+            Some("only one @ is allowed outside quotation marks"),
         );
     }
 
     #[test]
     fn test_bad_examples_from_wikipedia_02() {
-        //  (none of the special characters in this local-part are allowed outside quotation marks)
-        assert_eq!(
-            EmailAddress::from_str("a\"b(c)d,e:f;g<h>i[j\\k]l@example.com"),
-            Error::InvalidCharacter.into()
+        expect("a\"b(c)d,e:f;g<h>i[j\\k]l@example.com",
+            Error::InvalidCharacter,
+        Some("none of the special characters in this local-part are allowed outside quotation marks")
         );
     }
 
     #[test]
     fn test_bad_examples_from_wikipedia_03() {
-        // (quoted strings must be dot separated or the only element making up the local-part)
-        assert_eq!(
-            EmailAddress::from_str("just\"not\"right@example.com"),
-            Error::InvalidCharacter.into()
+        expect(
+            "just\"not\"right@example.com",
+            Error::InvalidCharacter,
+            Some(
+                "quoted strings must be dot separated or the only element making up the local-part",
+            ),
         );
     }
 
     #[test]
     fn test_bad_examples_from_wikipedia_04() {
-        // (spaces, quotes, and backslashes may only exist when within quoted strings and preceded by a backslash)
-        assert_eq!(
-            EmailAddress::from_str("this is\"not\\allowed@example.com"),
-            Error::InvalidCharacter.into()
+        expect("this is\"not\\allowed@example.com",
+            Error::InvalidCharacter,
+        Some("spaces, quotes, and backslashes may only exist when within quoted strings and preceded by a backslash")
         );
     }
 
     #[test]
     fn test_bad_examples_from_wikipedia_05() {
-        // (even if escaped (preceded by a backslash), spaces, quotes, and backslashes must still be contained by quotes)
-        assert_eq!(
-            EmailAddress::from_str("this\\ still\"not\\allowed@example.com"),
-            Error::InvalidCharacter.into()
+        // ()
+        expect("this\\ still\"not\\allowed@example.com",
+            Error::InvalidCharacter,
+        Some("even if escaped (preceded by a backslash), spaces, quotes, and backslashes must still be contained by quotes")
         );
     }
 
     #[test]
     fn test_bad_examples_from_wikipedia_06() {
-        // (local part is longer than 64 characters)
-        assert_eq!(
-            EmailAddress::from_str(
-                "1234567890123456789012345678901234567890123456789012345678901234+x@example.com"
-            ),
-            Error::LocalPartTooLong.into()
+        expect(
+            "1234567890123456789012345678901234567890123456789012345678901234+x@example.com",
+            Error::LocalPartTooLong,
+            Some("local part is longer than 64 characters"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_01() {
+        expect(
+            "foo@example.v1234567890123456789012345678901234567890123456789012345678901234v.com",
+            Error::SubDomainTooLong,
+            Some("domain part is longer than 64 characters"),
         );
     }
 }
