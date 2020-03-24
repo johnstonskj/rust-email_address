@@ -1,6 +1,6 @@
 [package]
 name = "email_address"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Simon Johnston <johnstonskj@gmail.com>"]
 description = "A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newtype. "
 documentation = "https://docs.rs/email_address/"
