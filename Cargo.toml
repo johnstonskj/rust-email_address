@@ -1,0 +1,18 @@
+[package]
+name = "email_address"
+version = "0.1.0"
+authors = ["Simon Johnston <johnstonskj@gmail.com>"]
+description = "Provides a new type for validation of email addresses"
+edition = "2018"
+license = "MIT"
+readme = "README.md"
+publish = true
+
+[features]
+default = ["serde_support"]
+serde_support = ["serde"]
+
+[dependencies]
+
+# Optional dependencies
+serde = { optional = true, version = "1.0", features = ["derive"] }
