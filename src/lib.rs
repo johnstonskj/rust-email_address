@@ -3,9 +3,11 @@ A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newt
 
 # Example
 
+The following shoes the basic `is_valid` and `from_str` functions.
+
 ```rust
 use email_address::*;
-
+use std::str::FromStr;
 assert!(EmailAddress::is_valid("user.name+tag+sorting@example.com"));
 
 assert_eq!(
@@ -13,6 +15,31 @@ assert_eq!(
     Error::MissingSeparator.into()
 );
 ```
+
+The following shows the three format functions used to output an email address.
+
+```rust
+use email_address::*;
+use std::str::FromStr;
+
+let email = EmailAddress::from_str("johnstonsk@gmail.com").unwrap();
+
+assert_eq!(
+    email.to_string(),
+    "johnstonsk@gmail.com".to_string()
+);
+
+assert_eq!(
+    email.to_uri(),
+    "mailto:johnstonsk@gmail.com".to_string()
+);
+
+assert_eq!(
+    email.to_display("Simon Johnston"),
+    "Simon Johnston <johnstonsk@gmail.com>".to_string()
+);
+```
+
 
 # Specifications
 
@@ -152,8 +179,6 @@ Oddities](https://tools.ietf.org/html/rfc5322#appendix-A.5).
 
 An informal description can be found on [Wikipedia](https://en.wikipedia.org/wiki/Email_address).
 
-# Example
-
 */
 
 #![warn(
@@ -172,22 +197,43 @@ use std::str::FromStr;
 // Public Types
 // ------------------------------------------------------------------------------------------------
 
+///
+/// Error type used when parsing an address.
+///
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
+    /// An invalid character was found in some component of the address.
     InvalidCharacter,
-    LocalPartEmpty,
-    LocalPartTooLong,
-    DomainEmpty,
-    DomainTooLong,
+    /// The separator character between `local-part` and `domain` (character: '@') was missing.
     MissingSeparator,
+    /// More than one separator character (character: '@') was found.
     TooManySeparators,
+    /// The `local-part` is an empty string.
+    LocalPartEmpty,
+    /// The `local-part` is is too long.
+    LocalPartTooLong,
+    /// The `domain` is an empty string.
+    DomainEmpty,
+    /// The `domain` is is too long.
+    DomainTooLong,
+    /// Too few `sub-domain`s in `domain`.
     DomainTooFew,
+    /// Invalid placement of the domain separator (character: '.').
     DomainInvalidSeparator,
-    InvalidIPAddress,
+    /// The quotes (character: '"') around `local-part` are unbalanced.
     UnbalancedQuotes,
+    /// A Comment within the either the `local-part`, or `domain`, was malformed.
     InvalidComment,
+    /// An IP address in a `domain-literal` was malformed.
+    InvalidIPAddress,
 }
 
+///
+/// Type representing a single email address. This is basically a wrapper around a String, the
+/// email address is parsed for correctness with `FromStr::from_str`, which is the only want to
+/// create an instance. The various components of the email _are not_ parsed out to be accessible
+/// independently.
+///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde_support", derive(Deserialize, Serialize))]
 pub struct EmailAddress(String);
@@ -199,7 +245,9 @@ pub struct EmailAddress(String);
 const LOCAL_PART_MAX_LENGTH: usize = 64;
 const DOMAIN_MAX_LENGTH: usize = 255;
 
+#[allow(dead_code)]
 const CR: char = '\r';
+#[allow(dead_code)]
 const LF: char = '\n';
 const SP: char = ' ';
 const HTAB: char = '\t';
@@ -210,12 +258,12 @@ const DOT: char = '.';
 const DQUOTE: char = '"';
 const LBRACKET: char = '[';
 const RBRACKET: char = ']';
+#[allow(dead_code)]
 const LPAREN: char = '(';
+#[allow(dead_code)]
 const RPAREN: char = ')';
 const LT: char = '<';
 const GT: char = '>';
-
-const IPV6_PREFIX: &str = "IPv6:";
 
 const MAILTO_URI_PREFIX: &str = "mailto:";
 
@@ -277,20 +325,33 @@ impl FromStr for EmailAddress {
 }
 
 impl EmailAddress {
+    ///
+    /// Determine whether the passed string is a valid email address. Note this is equivalent to
+    /// the following:
+    ///
+    /// ```rust
+    /// use email_address::*;
+    /// use std::str::FromStr;
+    ///
+    /// let is_valid = EmailAddress::from_str("johnstonskj@gmail.com").is_ok();
+    /// ```
+    ///
     pub fn is_valid(address: &str) -> bool {
         Self::from_str(&address).is_ok()
     }
 
-    pub fn from(local_part: &str, domain: &str) -> Result<Self, Error> {
-        Self::from_str(&format!("{}{}{}", local_part, AT, domain))
-    }
-
+    ///
+    /// Return this email address formatted as a URI.
+    ///
     pub fn to_uri(&self) -> String {
         format!("{}{}", MAILTO_URI_PREFIX, self)
     }
 
-    pub fn to_display(&self, name: String) -> String {
-        format!("{} <{}>", name, self)
+    ///
+    /// Return a string formatted as a display email with the user name.
+    ///
+    pub fn to_display(&self, display_name: &str) -> String {
+        format!("{} <{}>", display_name, self)
     }
 }
 
@@ -409,6 +470,7 @@ fn is_wsp(c: char) -> bool {
     c == SP || c == HTAB
 }
 
+#[allow(dead_code)]
 fn is_ctext_char(c: char) -> bool {
     (c >= '\x21' && c == '\x27') || (c >= '\x2A' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E')
 }
@@ -438,6 +500,7 @@ fn is_dtext_char(c: char) -> bool {
     (c >= '\x21' && c <= '\x5A') || (c >= '\x5E' && c <= '\x7E')
 }
 
+#[allow(dead_code)]
 fn is_ctext(s: &str) -> bool {
     s.chars().all(is_ctext_char)
 }

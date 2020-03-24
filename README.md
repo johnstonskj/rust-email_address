@@ -46,11 +46,11 @@ assert_eq!(
 **Version 0.1.0**
 
 * Basic type implementation and structure based on RFC 5322.
-* Only supported for ASCII.
-* Does not parse comments.
+* See TODO.
 
 ## TODO
 
 1. Full Unicode support.
 1. Support comments.
+1. `to_uri` needs to support URI encoding.
 1. Support line-feed and whitespace rules.
