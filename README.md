@@ -6,7 +6,7 @@ A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newt
 ![Minimum Rust Version](https://img.shields.io/badge/Min%20Rust-1.40-green.svg)
 [![crates.io](https://img.shields.io/crates/v/upnp-rs.svg)](https://crates.io/crates/email_address)
 [![docs.rs](https://docs.rs/email_address/badge.svg)](https://docs.rs/email_address)
-[![travis.ci](https://travis-ci.org/johnstonskj/rust-email_address.svg?branch=master)](https://travis-ci.org/johnstonskj/rust-email_address)
+![Build](https://github.com/johnstonskj/rust-email_address/workflows/Rust/badge.svg)
 [![GitHub stars](https://img.shields.io/github/stars/johnstonskj/rust-email_address.svg)](https://github.com/johnstonskj/rust-email_address/stargazers)
 
 Primarily for validation, the `EmailAddress` type is constructed with `FromStr::from_str` which will raise any
