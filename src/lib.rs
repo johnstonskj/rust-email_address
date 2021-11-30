@@ -376,6 +376,12 @@ impl FromStr for EmailAddress {
     }
 }
 
+impl From<EmailAddress> for String {
+    fn from(email: EmailAddress) -> Self {
+        email.0
+    }
+}
+
 impl EmailAddress {
     ///
     /// Determine whether the `address` string is a valid email address. Note this is equivalent to
