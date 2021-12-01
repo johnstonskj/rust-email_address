@@ -36,8 +36,18 @@ assert_eq!(
 );
 
 assert_eq!(
+    String::from(email.clone()),
+    "johnstonsk@gmail.com".to_string()
+);
+
+assert_eq!(
+    email.as_ref(),
+    "johnstonsk@gmail.com"
+);
+
+assert_eq!(
     email.to_uri(),
-    "mailto:johnstonsk%40gmail.com".to_string()
+    "mailto:johnstonsk@gmail.com".to_string()
 );
 
 assert_eq!(
@@ -229,10 +239,43 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 */
 
 #![warn(
+    unknown_lints,
+    // ---------- Stylistic
+    absolute_paths_not_starting_with_crate,
+    elided_lifetimes_in_paths,
+    explicit_outlives_requirements,
+    macro_use_extern_crate,
+    nonstandard_style, /* group */
+    noop_method_call,
+    rust_2018_idioms,
+    single_use_lifetimes,
+    trivial_casts,
+    trivial_numeric_casts,
+    // ---------- Future
+    future_incompatible, /* group */
+    rust_2021_compatibility, /* group */
+    // ---------- Public
     missing_debug_implementations,
     missing_docs,
-    unused_extern_crates,
-    rust_2018_idioms
+    unreachable_pub,
+    // ---------- Unsafe
+    unsafe_code,
+    unsafe_op_in_unsafe_fn,
+    // ---------- Unused
+    unused, /* group */
+)]
+#![deny(
+    // ---------- Public
+    exported_private_dependencies,
+    private_in_public,
+    // ---------- Deprecated
+    anonymous_parameters,
+    bare_trait_objects,
+    ellipsis_inclusive_range_patterns,
+    // ---------- Unsafe
+    deref_nullptr,
+    drop_bounds,
+    dyn_drop,
 )]
 
 #[cfg(feature = "serde_support")]
@@ -348,15 +391,17 @@ impl Display for Error {
     }
 }
 
+#[allow(unsafe_code)]
 unsafe impl Send for Error {}
 
+#[allow(unsafe_code)]
 unsafe impl Sync for Error {}
 
 impl std::error::Error for Error {}
 
-impl<T> Into<std::result::Result<T, Error>> for Error {
-    fn into(self) -> Result<T, Error> {
-        Err(self)
+impl<T> From<Error> for std::result::Result<T, Error> {
+    fn from(err: Error) -> Self {
+        Err(err)
     }
 }
 
@@ -379,6 +424,12 @@ impl FromStr for EmailAddress {
 impl From<EmailAddress> for String {
     fn from(email: EmailAddress) -> Self {
         email.0
+    }
+}
+
+impl AsRef<str> for EmailAddress {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
@@ -452,6 +503,7 @@ fn encode(address: &str) -> String {
 }
 
 fn is_uri_reserved(c: char) -> bool {
+    // No need to encode '@' as this is allowed in the email scheme.
     c == '!'
         || c == '#'
         || c == '$'
@@ -468,7 +520,6 @@ fn is_uri_reserved(c: char) -> bool {
         || c == ';'
         || c == '='
         || c == '?'
-        || c == '@'
         || c == '['
         || c == ']'
 }
@@ -611,7 +662,7 @@ fn is_dot_atom_text(s: &str) -> bool {
 }
 
 fn is_vchar(c: char) -> bool {
-    c >= '\x21' && c <= '\x7E'
+    ('\x21'..='\x7E').contains(&c)
 }
 
 fn is_wsp(c: char) -> bool {
@@ -619,7 +670,7 @@ fn is_wsp(c: char) -> bool {
 }
 
 fn is_qtext_char(c: char) -> bool {
-    c == '\x21' || (c >= '\x23' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E') || is_uchar(c)
+    c == '\x21' || ('\x23'..='\x5B').contains(&c) || ('\x5D'..='\x7E').contains(&c) || is_uchar(c)
 }
 
 fn is_qcontent(s: &str) -> bool {
@@ -640,12 +691,12 @@ fn is_qcontent(s: &str) -> bool {
 }
 
 fn is_dtext_char(c: char) -> bool {
-    (c >= '\x21' && c <= '\x5A') || (c >= '\x5E' && c <= '\x7E')
+    ('\x21'..='\x5A').contains(&c) || ('\x5E'..='\x7E').contains(&c)
 }
 
 #[allow(dead_code)]
 fn is_ctext_char(c: char) -> bool {
-    (c >= '\x21' && c == '\x27') || (c >= '\x2A' && c <= '\x5B') || (c >= '\x5D' && c <= '\x7E')
+    (c >= '\x21' && c == '\x27') || ('\x2A'..='\x5B').contains(&c) || ('\x5D'..='\x7E').contains(&c)
 }
 
 #[allow(dead_code)]
@@ -812,6 +863,36 @@ mod tests {
     #[test]
     fn test_good_examples_from_wikipedia_26() {
         is_valid("коля@пример.рф", Some("Russian"));
+    }
+
+    // ------------------------------------------------------------------------------------------------
+
+    #[test]
+    fn test_to_strings() {
+        let email = EmailAddress::from_str("коля@пример.рф").unwrap();
+
+        assert_eq!(String::from(email.clone()), String::from("коля@пример.рф"));
+
+        assert_eq!(email.to_string(), String::from("коля@пример.рф"));
+
+        assert_eq!(email.as_ref(), "коля@пример.рф");
+    }
+
+    #[test]
+    fn test_to_display() {
+        let email = EmailAddress::from_str("коля@пример.рф").unwrap();
+
+        assert_eq!(
+            email.to_display("коля"),
+            String::from("коля <коля@пример.рф>")
+        );
+    }
+
+    #[test]
+    fn test_touri() {
+        let email = EmailAddress::from_str("коля@пример.рф").unwrap();
+
+        assert_eq!(email.to_uri(), String::from("mailto:коля@пример.рф"));
     }
 
     // ------------------------------------------------------------------------------------------------
