@@ -4,7 +4,7 @@ A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newt
 
 ![MIT License](https://img.shields.io/badge/license-mit-118811.svg)
 ![Minimum Rust Version](https://img.shields.io/badge/Min%20Rust-1.40-green.svg)
-[![crates.io](https://img.shields.io/crates/v/upnp-rs.svg)](https://crates.io/crates/email_address)
+[![crates.io](https://img.shields.io/crates/v/email_address.svg)](https://crates.io/crates/email_address)
 [![docs.rs](https://docs.rs/email_address/badge.svg)](https://docs.rs/email_address)
 ![Build](https://github.com/johnstonskj/rust-email_address/workflows/Rust/badge.svg)
 ![Audit](https://github.com/johnstonskj/rust-email_address/workflows/Security%20audit/badge.svg)
@@ -12,9 +12,12 @@ A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newt
 
 Primarily for validation, the `EmailAddress` type is constructed with `FromStr::from_str` which will raise any
 parsing errors. Prior to constructions the functions `is_valid`, `is_valid_local_part`, and `is_valid_domain` may
-also be used to test for validity without constructing an instance. This supports all of the RFC ASCII and UTF-8
-character set rules, quoted and unquoted local parts but does not yet support all of the productions required for SMTP
-headers; folding whitespace, comments, etc.
+also be used to test for validity without constructing an instance.
+
+## Status 
+
+Currently, it supports all the RFC ASCII and UTF-8 character set rules as well as quoted and unquoted local 
+parts but does not yet support all the productions required for SMTP headers; folding whitespace, comments, etc.
 
 ## Example
 
