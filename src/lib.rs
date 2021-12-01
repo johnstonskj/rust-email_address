@@ -353,8 +353,6 @@ const RBRACKET: char = ']';
 const LPAREN: char = '(';
 #[allow(dead_code)]
 const RPAREN: char = ')';
-const LT: char = '<';
-const GT: char = '>';
 
 const UTF8_START: char = '\u{0080}';
 
@@ -467,7 +465,17 @@ impl EmailAddress {
 
     ///
     /// Return this email address formatted as a URI. This will also URI-encode the email
-    /// address itself. So, `name@example.org` becomes `mailto:name%40example.org`.
+    /// address itself. So, `name@example.org` becomes `mailto:name@example.org`.
+    ///
+    /// ```rust
+    /// use email_address::*;
+    /// use std::str::FromStr;
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::from_str("name@example.org").unwrap().to_uri(),
+    ///     String::from("mailto:name@example.org")
+    /// );
+    /// ```
     ///
     pub fn to_uri(&self) -> String {
         let encoded = encode(&self.0);
@@ -479,10 +487,56 @@ impl EmailAddress {
     /// in email headers and other locations where a display name is associated with the
     /// address.
     ///
-    /// So, `("name@example.org", "My Name")` becomes `"My Name <name@example.org>"`.
+    /// ```rust
+    /// use email_address::*;
+    /// use std::str::FromStr;
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::from_str("name@example.org").unwrap().to_display("My Name"),
+    ///     String::from("My Name <name@example.org>")
+    /// );
+    /// ```
     ///
     pub fn to_display(&self, display_name: &str) -> String {
         format!("{} <{}>", display_name, self)
+    }
+
+    ///
+    /// Returns the local part of the email address. This is borrowed so that no additional
+    /// allocation is required.
+    ///
+    /// ```rust
+    /// use email_address::*;
+    /// use std::str::FromStr;
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::from_str("name@example.org").unwrap().local_part(),
+    ///     String::from("name")
+    /// );
+    /// ```
+    ///
+    pub fn local_part(&self) -> &str {
+        let (left, _) = split_at(&self.0).unwrap();
+        left
+    }
+
+    ///
+    /// Returns the domain of the email address. This is borrowed so that no additional
+    /// allocation is required.
+    ///
+    /// ```rust
+    /// use email_address::*;
+    /// use std::str::FromStr;
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::from_str("name@example.org").unwrap().domain(),
+    ///     String::from("example.org")
+    /// );
+    /// ```
+    ///
+    pub fn domain(&self) -> &str {
+        let (_, right) = split_at(&self.0).unwrap();
+        right
     }
 }
 
@@ -525,22 +579,20 @@ fn is_uri_reserved(c: char) -> bool {
 }
 
 fn parse_address(address: &str) -> Result<EmailAddress, Error> {
-    let address = if address.starts_with(LT) && address.ends_with(GT) {
-        &address[1..address.len() - 1]
-    } else {
-        address
-    };
     //
     // Deals with cases of '@' in `local-part`, if it is quoted they are legal, if
     // not then they'll return an `InvalidCharacter` error later.
     //
-    let parts = address.rsplitn(2, AT).collect::<Vec<&str>>();
-    if parts.len() != 2 {
-        Error::MissingSeparator.into()
-    } else {
-        parse_local_part(parts.last().unwrap())?;
-        parse_domain(parts.first().unwrap())?;
-        Ok(EmailAddress(address.to_string()))
+    let (left, right) = split_at(address)?;
+    parse_local_part(left)?;
+    parse_domain(right)?;
+    Ok(EmailAddress(address.to_owned()))
+}
+
+fn split_at(address: &str) -> Result<(&str, &str), Error> {
+    match address.rsplit_once(AT) {
+        None => Error::MissingSeparator.into(),
+        Some(left_right) => Ok(left_right),
     }
 }
 
