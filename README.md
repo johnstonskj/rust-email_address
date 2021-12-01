@@ -54,6 +54,16 @@ assert_eq!(
    
 ## Changes
 
+**Version 0.2.1**
+
+* Added `From<EmailAddress>` for `String`.
+* Added `AsRef<str` for `EmailAddress`.
+* Added `local_part` and `domain` accessors.
+* More unit tests, especially for the list above.
+* Added more conditions to the warning and deny list.
+* Fixed some Clippy warnings.
+* Fixed a bug in encoding the mailto URI scheme.
+
 **Version 0.2.0**
 
 * Added UTF-8 support.
