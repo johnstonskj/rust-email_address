@@ -280,6 +280,7 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 
@@ -325,7 +326,7 @@ pub enum Error {
 /// independently.
 ///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde_support", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde_support", derive(Serialize))]
 pub struct EmailAddress(String);
 
 // ------------------------------------------------------------------------------------------------
@@ -428,6 +429,38 @@ impl From<EmailAddress> for String {
 impl AsRef<str> for EmailAddress {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+#[cfg(feature = "serde_support")]
+impl<'de> Deserialize<'de> for EmailAddress {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{Error, Unexpected, Visitor};
+
+        struct EmailAddressVisitor;
+
+        impl Visitor<'_> for EmailAddressVisitor {
+            type Value = EmailAddress;
+
+            fn expecting(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
+                fmt.write_str("data")
+            }
+
+            fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                EmailAddress::from_str(s).map_err(|err| {
+                    let exp = format!("{}", err);
+                    Error::invalid_value(Unexpected::Str(s), &exp.as_ref())
+                })
+            }
+        }
+
+        deserializer.deserialize_str(EmailAddressVisitor)
     }
 }
 
