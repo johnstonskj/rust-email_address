@@ -460,6 +460,25 @@ impl<'de> Deserialize<'de> for EmailAddress {
 
 impl EmailAddress {
     ///
+    /// Creates an `EmailAddress` without checking if the email is valid. Only
+    /// call this method if the address is known to be valid.
+    /// 
+    /// ```
+    /// use std::str::FromStr;
+    /// use email_address::EmailAddress;
+    ///
+    /// let unchecked = "john.doe@example.com";
+    /// let email = EmailAddress::from_str(unchecked).expect("email is not valid");
+    /// let valid_email = String::from(email);
+    /// let email = EmailAddress::new_unchecked(valid_email);
+    /// 
+    /// assert_eq!("John Doe <john.doe@example.com>", email.to_display("John Doe"));
+    /// ```
+    pub fn new_unchecked(address: String) -> Self {
+        Self(address)
+    }
+
+    ///
     /// Determine whether the `address` string is a valid email address. Note this is equivalent to
     /// the following:
     ///
