@@ -57,6 +57,11 @@ assert_eq!(
    
 ## Changes
 
+**Version 0.2.2**
+
+* Removed manual `Send` and `Sync` implementation, and fixed documentation bug
+  ([Sören Meier](https://github.com/soerenmeier)).
+
 **Version 0.2.1**
 
 * Added `From<EmailAddress>` for `String`.
