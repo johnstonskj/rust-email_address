@@ -217,7 +217,7 @@ These in turn refer to RFC 6529 §4. [Syntax of UTF-8 Byte Sequences](https://to
 > A UTF-8 string is a sequence of octets representing a sequence of UCS
 > characters.  An octet sequence is valid UTF-8 only if it matches the
 > following syntax, which is derived from the rules for encoding UTF-8
-> and is expressed in the ABNF of [RFC2234].
+> and is expressed in the ABNF of \[RFC2234\].
 
 ```ebnf
    UTF8-octets = *( UTF8-char )
@@ -389,12 +389,6 @@ impl Display for Error {
         }
     }
 }
-
-#[allow(unsafe_code)]
-unsafe impl Send for Error {}
-
-#[allow(unsafe_code)]
-unsafe impl Sync for Error {}
 
 impl std::error::Error for Error {}
 
@@ -1085,5 +1079,15 @@ mod tests {
     #[test]
     fn test_bad_example_04() {
         expect("simon@", Error::DomainEmpty, Some("domain is empty"));
+    }
+
+    // make sure Error impl Send + Sync
+    fn is_send<T: Send>() {}
+    fn is_sync<T: Sync>() {}
+
+    #[test]
+    fn test_error_traits() {
+        is_send::<Error>();
+        is_sync::<Error>();
     }
 }
