@@ -57,6 +57,10 @@ assert_eq!(
    
 ## Changes
 
+**Version 0.2.3**
+
+* Added new `EmailAddress::new_unchecked` function ([Sören Meier](https://github.com/soerenmeier)).
+
 **Version 0.2.2**
 
 * Removed manual `Send` and `Sync` implementation, and fixed documentation bug
