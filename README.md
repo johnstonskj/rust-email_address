@@ -57,6 +57,14 @@ assert_eq!(
    
 ## Changes
 
+**Version 0.2.4**
+
+* Fixed bug [#11](https://github.com/johnstonskj/rust-email_address/issues/11):
+  1. Add manual implementation of `PartialEq` with case insensitive comparison for domain part.
+  2. Add manual implementation of `Hash`, because above.
+* Change signature for `new_unchecked` to be more flexible.
+* Add `as_str` helper method.
+
 **Version 0.2.3**
 
 * Added new `EmailAddress::new_unchecked` function ([Sören Meier](https://github.com/soerenmeier)).
