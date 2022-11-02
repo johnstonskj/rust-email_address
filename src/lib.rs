@@ -282,6 +282,7 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
+use std::hash::Hash;
 use std::str::FromStr;
 
 // ------------------------------------------------------------------------------------------------
@@ -325,7 +326,7 @@ pub enum Error {
 /// create an instance. The various components of the email _are not_ parsed out to be accessible
 /// independently.
 ///
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Eq)]
 #[cfg_attr(feature = "serde_support", derive(Serialize))]
 pub struct EmailAddress(String);
 
@@ -406,6 +407,30 @@ impl Display for EmailAddress {
     }
 }
 
+// From RFC 5321, section 2.4:
+//
+// The local-part of a mailbox MUST BE treated as case sensitive. Therefore,
+// SMTP implementations MUST take care to preserve the case of mailbox
+// local-parts. In particular, for some hosts, the user "smith" is different
+// from the user "Smith". However, exploiting the case sensitivity of mailbox
+// local-parts impedes interoperability and is discouraged. Mailbox domains
+// follow normal DNS rules and are hence not case sensitive.
+//
+
+impl PartialEq for EmailAddress {
+    fn eq(&self, other: &Self) -> bool {
+        let (left, right) = split_at(&self.0).unwrap();
+        let (other_left, other_right) = split_at(&other.0).unwrap();
+        left.eq(other_left) && right.eq_ignore_ascii_case(other_right)
+    }
+}
+
+impl Hash for EmailAddress {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
 impl FromStr for EmailAddress {
     type Err = Error;
 
@@ -474,8 +499,11 @@ impl EmailAddress {
     ///
     /// assert_eq!("John Doe <john.doe@example.com>", email.to_display("John Doe"));
     /// ```
-    pub fn new_unchecked(address: String) -> Self {
-        Self(address)
+    pub fn new_unchecked<S>(address: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self(address.into())
     }
 
     ///
@@ -583,6 +611,13 @@ impl EmailAddress {
     pub fn domain(&self) -> &str {
         let (_, right) = split_at(&self.0).unwrap();
         right
+    }
+
+    ///
+    /// Returns the email address as a string reference.
+    ///
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
     }
 }
 
@@ -1108,5 +1143,24 @@ mod tests {
     fn test_error_traits() {
         is_send::<Error>();
         is_sync::<Error>();
+    }
+
+    #[test]
+    // BUG: https://github.com/johnstonskj/rust-email_address/issues/11
+    fn test_eq_name_case_sensitive_local() {
+        let email = EmailAddress::new_unchecked("simon@example.com");
+
+        assert_eq!(email, EmailAddress::new_unchecked("simon@example.com"));
+        assert_ne!(email, EmailAddress::new_unchecked("Simon@example.com"));
+        assert_ne!(email, EmailAddress::new_unchecked("simoN@example.com"));
+    }
+
+    #[test]
+    // BUG: https://github.com/johnstonskj/rust-email_address/issues/11
+    fn test_eq_name_case_insensitive_domain() {
+        let email = EmailAddress::new_unchecked("simon@example.com");
+
+        assert_eq!(email, EmailAddress::new_unchecked("simon@Example.com"));
+        assert_eq!(email, EmailAddress::new_unchecked("simon@example.COM"));
     }
 }
