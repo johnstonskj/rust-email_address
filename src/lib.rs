@@ -282,6 +282,7 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
+use std::hash::Hash;
 use std::str::FromStr;
 
 // ------------------------------------------------------------------------------------------------
@@ -325,7 +326,7 @@ pub enum Error {
 /// create an instance. The various components of the email _are not_ parsed out to be accessible
 /// independently.
 ///
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Eq)]
 #[cfg_attr(feature = "serde_support", derive(Serialize))]
 pub struct EmailAddress(String);
 
@@ -406,6 +407,30 @@ impl Display for EmailAddress {
     }
 }
 
+// From RFC 5321, section 2.4:
+//
+// The local-part of a mailbox MUST BE treated as case sensitive. Therefore,
+// SMTP implementations MUST take care to preserve the case of mailbox
+// local-parts. In particular, for some hosts, the user "smith" is different
+// from the user "Smith". However, exploiting the case sensitivity of mailbox
+// local-parts impedes interoperability and is discouraged. Mailbox domains
+// follow normal DNS rules and are hence not case sensitive.
+//
+
+impl PartialEq for EmailAddress {
+    fn eq(&self, other: &Self) -> bool {
+        let (left, right, _) = split_parts(&self.0).unwrap();
+        let (other_left, other_right, _ ) = split_parts(&other.0).unwrap();
+        left.eq(other_left) && right.eq_ignore_ascii_case(other_right)
+    }
+}
+
+impl Hash for EmailAddress {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
 impl FromStr for EmailAddress {
     type Err = Error;
 
@@ -474,8 +499,11 @@ impl EmailAddress {
     ///
     /// assert_eq!("John Doe <john.doe@example.com>", email.to_display("John Doe"));
     /// ```
-    pub fn new_unchecked(address: String) -> Self {
-        Self(address)
+    pub fn new_unchecked<S>(address: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self(address.into())
     }
 
     ///
@@ -562,8 +590,27 @@ impl EmailAddress {
     /// ```
     ///
     pub fn local_part(&self) -> &str {
-        let (left, _) = split_at(&self.0).unwrap();
+        let (left, _, __) = split_parts(&self.0).unwrap();
         left
+    }
+
+    ///
+    /// Returns the display part of the email address. This is borrowed so that no additional
+    /// allocation is required.
+    ///
+    /// ```rust
+    /// use email_address::*;
+    /// use std::str::FromStr;
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::from_str("Name <name@example.org>").unwrap().display_part(),
+    ///     String::from("Name")
+    /// );
+    /// ```
+    ///
+    pub fn display_part(&self) -> &str {
+        let (_, _, display) = split_parts(&self.0).unwrap();
+        display
     }
 
     ///
@@ -581,8 +628,15 @@ impl EmailAddress {
     /// ```
     ///
     pub fn domain(&self) -> &str {
-        let (_, right) = split_at(&self.0).unwrap();
+        let (_, right, __) = split_parts(&self.0).unwrap();
         right
+    }
+
+    ///
+    /// Returns the email address as a string reference.
+    ///
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
     }
 }
 
@@ -624,15 +678,36 @@ fn is_uri_reserved(c: char) -> bool {
         || c == ']'
 }
 
+
 fn parse_address(address: &str) -> Result<EmailAddress, Error> {
     //
     // Deals with cases of '@' in `local-part`, if it is quoted they are legal, if
     // not then they'll return an `InvalidCharacter` error later.
     //
-    let (left, right) = split_at(address)?;
-    parse_local_part(left)?;
-    parse_domain(right)?;
+    let (local_part, domain, display) = split_parts(address)?;
+    println!("{}", display);
+    parse_local_part(local_part)?;
+    parse_domain(domain)?;
     Ok(EmailAddress(address.to_owned()))
+}
+
+fn split_parts(address: &str) -> Result<(&str, &str, &str), Error> {
+    let (display, email) = split_display_email(address)?;
+    let (local_part, domain) = split_at(email)?;
+    return Ok((local_part, domain, display))
+
+}
+
+fn split_display_email(text: &str) -> Result<(&str, &str), Error> {
+    match text.rsplit_once(" <") {
+        None => Ok(("", text)),
+        Some(left_right) => {
+            let email = &left_right.1[0..left_right.1.len() - 1];
+            let display_name  = left_right.0;
+            
+            return Ok((display_name, email))
+        },
+    }
 }
 
 fn split_at(address: &str) -> Result<(&str, &str), Error> {
@@ -963,6 +1038,11 @@ mod tests {
         is_valid("коля@пример.рф", Some("Russian"));
     }
 
+     #[test]
+    fn test_good_examples_from_wikipedia_27() {
+        is_valid("Art Vandelay <art@vandelay.com>", None);
+    }
+
     // ------------------------------------------------------------------------------------------------
 
     #[test]
@@ -1108,5 +1188,24 @@ mod tests {
     fn test_error_traits() {
         is_send::<Error>();
         is_sync::<Error>();
+    }
+
+    #[test]
+    // BUG: https://github.com/johnstonskj/rust-email_address/issues/11
+    fn test_eq_name_case_sensitive_local() {
+        let email = EmailAddress::new_unchecked("simon@example.com");
+
+        assert_eq!(email, EmailAddress::new_unchecked("simon@example.com"));
+        assert_ne!(email, EmailAddress::new_unchecked("Simon@example.com"));
+        assert_ne!(email, EmailAddress::new_unchecked("simoN@example.com"));
+    }
+
+    #[test]
+    // BUG: https://github.com/johnstonskj/rust-email_address/issues/11
+    fn test_eq_name_case_insensitive_domain() {
+        let email = EmailAddress::new_unchecked("simon@example.com");
+
+        assert_eq!(email, EmailAddress::new_unchecked("simon@Example.com"));
+        assert_eq!(email, EmailAddress::new_unchecked("simon@example.COM"));
     }
 }
