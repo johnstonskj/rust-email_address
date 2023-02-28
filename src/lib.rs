@@ -420,7 +420,7 @@ impl Display for EmailAddress {
 impl PartialEq for EmailAddress {
     fn eq(&self, other: &Self) -> bool {
         let (left, right, _) = split_parts(&self.0).unwrap();
-        let (other_left, other_right, _ ) = split_parts(&other.0).unwrap();
+        let (other_left, other_right, _) = split_parts(&other.0).unwrap();
         left.eq(other_left) && right.eq_ignore_ascii_case(other_right)
     }
 }
@@ -590,7 +590,7 @@ impl EmailAddress {
     /// ```
     ///
     pub fn local_part(&self) -> &str {
-        let (left, _, __) = split_parts(&self.0).unwrap();
+        let (left, _, _) = split_parts(&self.0).unwrap();
         left
     }
 
@@ -647,7 +647,7 @@ impl EmailAddress {
     /// ```
     ///
     pub fn domain(&self) -> &str {
-        let (_, right, __) = split_parts(&self.0).unwrap();
+        let (_, right, _) = split_parts(&self.0).unwrap();
         right
     }
 
@@ -697,7 +697,6 @@ fn is_uri_reserved(c: char) -> bool {
         || c == ']'
 }
 
-
 fn parse_address(address: &str) -> Result<EmailAddress, Error> {
     //
     // Deals with cases of '@' in `local-part`, if it is quoted they are legal, if
@@ -712,8 +711,7 @@ fn parse_address(address: &str) -> Result<EmailAddress, Error> {
 fn split_parts(address: &str) -> Result<(&str, &str, &str), Error> {
     let (display, email) = split_display_email(address)?;
     let (local_part, domain) = split_at(email)?;
-    return Ok((local_part, domain, display))
-
+    Ok((local_part, domain, display))
 }
 
 fn split_display_email(text: &str) -> Result<(&str, &str), Error> {
@@ -721,10 +719,10 @@ fn split_display_email(text: &str) -> Result<(&str, &str), Error> {
         None => Ok(("", text)),
         Some(left_right) => {
             let email = &left_right.1[0..left_right.1.len() - 1];
-            let display_name  = left_right.0;
-            
-            return Ok((display_name, email))
-        },
+            let display_name = left_right.0;
+
+            Ok((display_name, email))
+        }
     }
 }
 
@@ -958,7 +956,10 @@ mod tests {
 
     #[test]
     fn test_good_examples_from_wikipedia_09() {
-        is_valid("admin@mailserver1", Some("local domain name with no TLD, although ICANN highly discourages dotless email addresses"));
+        is_valid(
+            "admin@mailserver1",
+            Some("local domain name with no TLD, although ICANN highly discourages dotless email addresses"),
+        );
     }
 
     #[test]
@@ -1118,9 +1119,10 @@ mod tests {
 
     #[test]
     fn test_bad_examples_from_wikipedia_02() {
-        expect("a\"b(c)d,e:f;g<h>i[j\\k]l@example.com",
+        expect(
+            "a\"b(c)d,e:f;g<h>i[j\\k]l@example.com",
             Error::InvalidCharacter,
-        Some("none of the special characters in this local-part are allowed outside quotation marks")
+            Some("none of the special characters in this local-part are allowed outside quotation marks"),
         );
     }
 
@@ -1137,9 +1139,12 @@ mod tests {
 
     #[test]
     fn test_bad_examples_from_wikipedia_04() {
-        expect("this is\"not\\allowed@example.com",
+        expect(
+            "this is\"not\\allowed@example.com",
             Error::InvalidCharacter,
-        Some("spaces, quotes, and backslashes may only exist when within quoted strings and preceded by a backslash")
+            Some(
+                "spaces, quotes, and backslashes may only exist when within quoted strings and preceded by a backslash",
+            ),
         );
     }
 
