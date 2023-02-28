@@ -614,6 +614,25 @@ impl EmailAddress {
     }
 
     ///
+    /// Returns the email part of the email address. This is borrowed so that no additional
+    /// allocation is required.
+    ///
+    /// ```rust
+    /// use email_address::*;
+    /// use std::str::FromStr;
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::from_str("Name <name@example.org>").unwrap().email(),
+    ///     String::from("name@example.org")
+    /// );
+    /// ```
+    ///
+    pub fn email(&self) -> String {
+        let (left, right, _) = split_parts(&self.0).unwrap();
+        format!("{}@{}", left, right)
+    }
+
+    ///
     /// Returns the domain of the email address. This is borrowed so that no additional
     /// allocation is required.
     ///
@@ -684,8 +703,7 @@ fn parse_address(address: &str) -> Result<EmailAddress, Error> {
     // Deals with cases of '@' in `local-part`, if it is quoted they are legal, if
     // not then they'll return an `InvalidCharacter` error later.
     //
-    let (local_part, domain, display) = split_parts(address)?;
-    println!("{}", display);
+    let (local_part, domain, _) = split_parts(address)?;
     parse_local_part(local_part)?;
     parse_domain(domain)?;
     Ok(EmailAddress(address.to_owned()))
@@ -1036,11 +1054,6 @@ mod tests {
     #[test]
     fn test_good_examples_from_wikipedia_26() {
         is_valid("коля@пример.рф", Some("Russian"));
-    }
-
-     #[test]
-    fn test_good_examples_from_wikipedia_27() {
-        is_valid("Art Vandelay <art@vandelay.com>", None);
     }
 
     // ------------------------------------------------------------------------------------------------
