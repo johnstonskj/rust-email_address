@@ -306,6 +306,8 @@ pub enum Error {
     DomainEmpty,
     /// The `domain` is is too long.
     DomainTooLong,
+    /// The `sub-domain` within the `domain` is empty.
+    SubDomainEmpty,
     /// A `sub-domain` within the `domain` is is too long.
     SubDomainTooLong,
     /// Too few `sub-domain`s in `domain`.
@@ -318,6 +320,17 @@ pub enum Error {
     InvalidComment,
     /// An IP address in a `domain-literal` was malformed.
     InvalidIPAddress,
+}
+
+///
+/// Struct of options that can be configured when parsing with `parse_with_options`.
+///
+#[derive(Debug, Default, Copy, Clone)]
+pub struct Options {
+    ///
+    /// Sets the minimum number of domain segments that must exist to parse successfully.
+    ///
+    pub minimum_sub_domains: usize,
 }
 
 ///
@@ -374,6 +387,7 @@ impl Display for Error {
             Error::DomainTooLong => {
                 write!(f, "Domain is too long. Length limit: {}", DOMAIN_MAX_LENGTH)
             }
+            Error::SubDomainEmpty => write!(f, "A sub-domain is empty."),
             Error::SubDomainTooLong => write!(
                 f,
                 "A sub-domain is too long. Length limit: {}",
@@ -435,7 +449,7 @@ impl FromStr for EmailAddress {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_address(s)
+        parse_address(s, Default::default())
     }
 }
 
@@ -507,6 +521,22 @@ impl EmailAddress {
     }
 
     ///
+    /// Parses an [EmailAddress] with custom [Options]. Useful for configuring validations
+    /// that aren't mandatory by the specification.
+    ///
+    /// ```
+    /// use email_address::{EmailAddress, Options};
+    ///
+    /// let options = Options { minimum_sub_domains: 2 };
+    /// let result = EmailAddress::parse_with_options("john.doe@localhost", options).is_ok();
+    ///
+    /// assert_eq!(result, false);
+    /// ```
+    pub fn parse_with_options(address: &str, options: Options) -> Result<Self, Error> {
+        parse_address(address, options)
+    }
+
+    ///
     /// Determine whether the `address` string is a valid email address. Note this is equivalent to
     /// the following:
     ///
@@ -526,7 +556,7 @@ impl EmailAddress {
     /// email address.
     ///
     pub fn is_valid_local_part(part: &str) -> bool {
-        parse_local_part(part).is_ok()
+        parse_local_part(part, Default::default()).is_ok()
     }
 
     ///
@@ -534,7 +564,7 @@ impl EmailAddress {
     /// email address.
     ///
     pub fn is_valid_domain(part: &str) -> bool {
-        parse_domain(part).is_ok()
+        parse_domain(part, Default::default()).is_ok()
     }
 
     ///
@@ -659,14 +689,14 @@ fn is_uri_reserved(c: char) -> bool {
         || c == ']'
 }
 
-fn parse_address(address: &str) -> Result<EmailAddress, Error> {
+fn parse_address(address: &str, options: Options) -> Result<EmailAddress, Error> {
     //
     // Deals with cases of '@' in `local-part`, if it is quoted they are legal, if
     // not then they'll return an `InvalidCharacter` error later.
     //
     let (left, right) = split_at(address)?;
-    parse_local_part(left)?;
-    parse_domain(right)?;
+    parse_local_part(left, options)?;
+    parse_domain(right, options)?;
     Ok(EmailAddress(address.to_owned()))
 }
 
@@ -677,7 +707,7 @@ fn split_at(address: &str) -> Result<(&str, &str), Error> {
     }
 }
 
-fn parse_local_part(part: &str) -> Result<(), Error> {
+fn parse_local_part(part: &str, _options: Options) -> Result<(), Error> {
     if part.is_empty() {
         Error::LocalPartEmpty.into()
     } else if part.len() > LOCAL_PART_MAX_LENGTH {
@@ -708,7 +738,7 @@ fn parse_unquoted_local_part(part: &str) -> Result<(), Error> {
     Error::InvalidCharacter.into()
 }
 
-fn parse_domain(part: &str) -> Result<(), Error> {
+fn parse_domain(part: &str, options: Options) -> Result<(), Error> {
     if part.is_empty() {
         Error::DomainEmpty.into()
     } else if part.len() > DOMAIN_MAX_LENGTH {
@@ -716,20 +746,45 @@ fn parse_domain(part: &str) -> Result<(), Error> {
     } else if part.starts_with(LBRACKET) && part.ends_with(RBRACKET) {
         parse_literal_domain(&part[1..part.len() - 1])
     } else {
-        parse_text_domain(part)
+        parse_text_domain(part, options)
     }
 }
 
-fn parse_text_domain(part: &str) -> Result<(), Error> {
-    if is_dot_atom_text(part) {
-        for sub_part in part.split(DOT) {
-            if sub_part.len() > SUB_DOMAIN_MAX_LENGTH {
-                return Error::SubDomainTooLong.into();
-            }
+fn parse_text_domain(part: &str, options: Options) -> Result<(), Error> {
+    let mut sub_domains = 0;
+
+    for sub_part in part.split(DOT) {
+        // As per https://www.rfc-editor.org/rfc/rfc1034#section-3.5 and https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address,
+        // at least one character must exist in a `subdomain`/`label` part of the domain
+        if sub_part.is_empty() {
+            return Error::SubDomainEmpty.into();
         }
-        return Ok(());
+        // As per https://www.rfc-editor.org/rfc/rfc1034#section-3.5, the domain label needs to start with a `letter`;
+        // however, https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address specifies a label can start
+        // with a `let-dig` (letter or digit), so we allow the wider range
+        if !sub_part.starts_with(char::is_alphanumeric) {
+            return Error::InvalidCharacter.into();
+        }
+        // Both specifications mentioned above require the last character to be a `let-dig` (letter or digit)
+        if !sub_part.ends_with(char::is_alphanumeric) {
+            return Error::InvalidCharacter.into();
+        }
+        if sub_part.len() > SUB_DOMAIN_MAX_LENGTH {
+            return Error::SubDomainTooLong.into();
+        }
+
+        if !is_atom(sub_part) {
+            return Error::InvalidCharacter.into();
+        }
+
+        sub_domains += 1;
     }
-    Error::InvalidCharacter.into()
+
+    if sub_domains < options.minimum_sub_domains {
+        Error::DomainTooFew.into()
+    } else {
+        Ok(())
+    }
 }
 
 fn parse_literal_domain(part: &str) -> Result<(), Error> {
@@ -853,6 +908,16 @@ mod tests {
             println!(">> <{}>", address);
         }
         assert!(EmailAddress::is_valid(address));
+    }
+
+    fn valid_with_options(address: &str, options: Options, test_case: Option<&str>) {
+        if let Some(test_case) = test_case {
+            println!(">> test case: {}", test_case);
+            println!("     <{}>", address);
+        } else {
+            println!(">> <{}>", address);
+        }
+        assert!(EmailAddress::parse_with_options(address, options).is_ok());
     }
 
     #[test]
@@ -998,6 +1063,17 @@ mod tests {
         is_valid("коля@пример.рф", Some("Russian"));
     }
 
+    #[test]
+    fn test_good_examples_01() {
+        valid_with_options(
+            "foo@example.com",
+            Options {
+                minimum_sub_domains: 2,
+            },
+            Some("minimum sub domains"),
+        );
+    }
+
     // ------------------------------------------------------------------------------------------------
 
     #[test]
@@ -1038,6 +1114,19 @@ mod tests {
             println!(">> <{}>, expecting {:?}", address, error);
         }
         assert_eq!(EmailAddress::from_str(address), error.into());
+    }
+
+    fn expect_with_options(address: &str, options: Options, error: Error, test_case: Option<&str>) {
+        if let Some(test_case) = test_case {
+            println!(">> test case: {}", test_case);
+            println!("     <{}>, expecting {:?}", address, error);
+        } else {
+            println!(">> <{}>, expecting {:?}", address, error);
+        }
+        assert_eq!(
+            EmailAddress::parse_with_options(address, options),
+            error.into()
+        );
     }
 
     #[test]
@@ -1133,6 +1222,120 @@ mod tests {
     #[test]
     fn test_bad_example_04() {
         expect("simon@", Error::DomainEmpty, Some("domain is empty"));
+    }
+
+    #[test]
+    fn test_bad_example_05() {
+        expect(
+            "example@invalid-.com",
+            Error::InvalidCharacter,
+            Some("domain label ends with hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_06() {
+        expect(
+            "example@-invalid.com",
+            Error::InvalidCharacter,
+            Some("domain label starts with hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_07() {
+        expect(
+            "example@invalid.com-",
+            Error::InvalidCharacter,
+            Some("domain label starts ends hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_08() {
+        expect(
+            "example@inv-.alid-.com",
+            Error::InvalidCharacter,
+            Some("subdomain label ends hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_09() {
+        expect(
+            "example@-inv.alid-.com",
+            Error::InvalidCharacter,
+            Some("subdomain label starts hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_10() {
+        expect(
+            "example@-.com",
+            Error::InvalidCharacter,
+            Some("domain label is hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_11() {
+        expect(
+            "example@-",
+            Error::InvalidCharacter,
+            Some("domain label is hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_12() {
+        expect(
+            "example@-abc",
+            Error::InvalidCharacter,
+            Some("domain label starts with hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_13() {
+        expect(
+            "example@abc-",
+            Error::InvalidCharacter,
+            Some("domain label ends with hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_14() {
+        expect(
+            "example@.com",
+            Error::SubDomainEmpty,
+            Some("subdomain label is empty"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_15() {
+        expect_with_options(
+            "foo@localhost",
+            Options {
+                minimum_sub_domains: 2,
+            },
+            Error::DomainTooFew,
+            Some("too few domains"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_16() {
+        expect_with_options(
+            "foo@a.b.c.d.e.f.g.h.i",
+            Options {
+                minimum_sub_domains: 10,
+            },
+            Error::DomainTooFew,
+            Some("too few domains"),
+        );
     }
 
     // make sure Error impl Send + Sync
