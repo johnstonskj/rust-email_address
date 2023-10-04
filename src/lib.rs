@@ -320,17 +320,33 @@ pub enum Error {
     InvalidComment,
     /// An IP address in a `domain-literal` was malformed.
     InvalidIPAddress,
+    /// A `domain-literal` was supplied, but is unsupported by parser configuration.
+    UnsupportedDomainLiteral,
 }
 
 ///
 /// Struct of options that can be configured when parsing with `parse_with_options`.
 ///
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Options {
     ///
     /// Sets the minimum number of domain segments that must exist to parse successfully.
     ///
     pub minimum_sub_domains: usize,
+
+    ///
+    /// Specifies if domain literals are allowed. Defaults to `true`.
+    ///
+    pub allow_domain_literal: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            minimum_sub_domains: Default::default(),
+            allow_domain_literal: true,
+        }
+    }
 }
 
 ///
@@ -401,6 +417,7 @@ impl Display for Error {
             Error::InvalidIPAddress => write!(f, "Invalid IP Address specified for domain."),
             Error::UnbalancedQuotes => write!(f, "Quotes around the local-part are unbalanced."),
             Error::InvalidComment => write!(f, "A comment was badly formed."),
+            Error::UnsupportedDomainLiteral => write!(f, "Domain literals are not supported."),
         }
     }
 }
@@ -744,7 +761,11 @@ fn parse_domain(part: &str, options: Options) -> Result<(), Error> {
     } else if part.len() > DOMAIN_MAX_LENGTH {
         Error::DomainTooLong.into()
     } else if part.starts_with(LBRACKET) && part.ends_with(RBRACKET) {
-        parse_literal_domain(&part[1..part.len() - 1])
+        if options.allow_domain_literal {
+            parse_literal_domain(&part[1..part.len() - 1])
+        } else {
+            Error::UnsupportedDomainLiteral.into()
+        }
     } else {
         parse_text_domain(part, options)
     }
@@ -1069,6 +1090,91 @@ mod tests {
             "foo@example.com",
             Options {
                 minimum_sub_domains: 2,
+                ..Default::default()
+            },
+            Some("minimum sub domains"),
+        );
+    }
+
+    #[test]
+    fn test_good_examples_02() {
+        valid_with_options(
+            "email@[127.0.0.256]",
+            Options {
+                allow_domain_literal: true,
+                ..Default::default()
+            },
+            Some("minimum sub domains"),
+        );
+    }
+
+    #[test]
+    fn test_good_examples_03() {
+        valid_with_options(
+            "email@[2001:db8::12345]",
+            Options {
+                allow_domain_literal: true,
+                ..Default::default()
+            },
+            Some("minimum sub domains"),
+        );
+    }
+
+    #[test]
+    fn test_good_examples_04() {
+        valid_with_options(
+            "email@[2001:db8:0:0:0:0:1]",
+            Options {
+                allow_domain_literal: true,
+                ..Default::default()
+            },
+            Some("minimum sub domains"),
+        );
+    }
+
+    #[test]
+    fn test_good_examples_05() {
+        valid_with_options(
+            "email@[::ffff:127.0.0.256]",
+            Options {
+                allow_domain_literal: true,
+                ..Default::default()
+            },
+            Some("minimum sub domains"),
+        );
+    }
+
+    #[test]
+    fn test_good_examples_06() {
+        valid_with_options(
+            "email@[2001:dg8::1]",
+            Options {
+                allow_domain_literal: true,
+                ..Default::default()
+            },
+            Some("minimum sub domains"),
+        );
+    }
+
+    #[test]
+    fn test_good_examples_07() {
+        valid_with_options(
+            "email@[2001:dG8:0:0:0:0:0:1]",
+            Options {
+                allow_domain_literal: true,
+                ..Default::default()
+            },
+            Some("minimum sub domains"),
+        );
+    }
+
+    #[test]
+    fn test_good_examples_08() {
+        valid_with_options(
+            "email@[::fTzF:127.0.0.1]",
+            Options {
+                allow_domain_literal: true,
+                ..Default::default()
             },
             Some("minimum sub domains"),
         );
@@ -1320,6 +1426,7 @@ mod tests {
             "foo@localhost",
             Options {
                 minimum_sub_domains: 2,
+                ..Default::default()
             },
             Error::DomainTooFew,
             Some("too few domains"),
@@ -1332,9 +1439,62 @@ mod tests {
             "foo@a.b.c.d.e.f.g.h.i",
             Options {
                 minimum_sub_domains: 10,
+                ..Default::default()
             },
             Error::DomainTooFew,
             Some("too few domains"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_17() {
+        expect_with_options(
+            "email@[127.0.0.256]",
+            Options {
+                allow_domain_literal: false,
+                ..Default::default()
+            },
+            Error::UnsupportedDomainLiteral,
+            Some("unsupported domain literal (1)"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_18() {
+        expect_with_options(
+            "email@[2001:db8::12345]",
+            Options {
+                allow_domain_literal: false,
+                ..Default::default()
+            },
+            Error::UnsupportedDomainLiteral,
+            Some("unsupported domain literal (2)"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_19() {
+        expect_with_options(
+            "email@[2001:db8:0:0:0:0:1]",
+            Options {
+                allow_domain_literal: false,
+                ..Default::default()
+            },
+            Error::UnsupportedDomainLiteral,
+            Some("unsupported domain literal (3)"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_20() {
+        expect_with_options(
+            "email@[::ffff:127.0.0.256]",
+            Options {
+                allow_domain_literal: false,
+                ..Default::default()
+            },
+            Error::UnsupportedDomainLiteral,
+            Some("unsupported domain literal (4)"),
         );
     }
 
