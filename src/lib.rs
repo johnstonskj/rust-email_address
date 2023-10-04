@@ -306,6 +306,8 @@ pub enum Error {
     DomainEmpty,
     /// The `domain` is is too long.
     DomainTooLong,
+    /// The `sub-domain` within the `domain` is empty.
+    SubDomainEmpty,
     /// A `sub-domain` within the `domain` is is too long.
     SubDomainTooLong,
     /// Too few `sub-domain`s in `domain`.
@@ -374,6 +376,7 @@ impl Display for Error {
             Error::DomainTooLong => {
                 write!(f, "Domain is too long. Length limit: {}", DOMAIN_MAX_LENGTH)
             }
+            Error::SubDomainEmpty => write!(f, "A sub-domain is empty."),
             Error::SubDomainTooLong => write!(
                 f,
                 "A sub-domain is too long. Length limit: {}",
@@ -721,25 +724,32 @@ fn parse_domain(part: &str) -> Result<(), Error> {
 }
 
 fn parse_text_domain(part: &str) -> Result<(), Error> {
-    if is_dot_atom_text(part) {
-        for sub_part in part.split(DOT) {
-            // As per https://www.rfc-editor.org/rfc/rfc1034#section-3.5, the domain label needs to start with a `letter`;
-            // however, https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address specifies a label can start
-            // with a `let-dig` (letter or digit), so we allow the wider range
-            if !sub_part.starts_with(char::is_alphanumeric) {
-                return Error::InvalidCharacter.into();
-            }
-            // Both specifications mentioned above require the last character to be a `let-dig` (letter or digit)
-            if !sub_part.ends_with(char::is_alphanumeric) {
-                return Error::InvalidCharacter.into();
-            }
-            if sub_part.len() > SUB_DOMAIN_MAX_LENGTH {
-                return Error::SubDomainTooLong.into();
-            }
+    for sub_part in part.split(DOT) {
+        // As per https://www.rfc-editor.org/rfc/rfc1034#section-3.5 and https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address,
+        // at least one character must exist in a `subdomain`/`label` part of the domain
+        if sub_part.is_empty() {
+            return Error::SubDomainEmpty.into();
         }
-        return Ok(());
+        // As per https://www.rfc-editor.org/rfc/rfc1034#section-3.5, the domain label needs to start with a `letter`;
+        // however, https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address specifies a label can start
+        // with a `let-dig` (letter or digit), so we allow the wider range
+        if !sub_part.starts_with(char::is_alphanumeric) {
+            return Error::InvalidCharacter.into();
+        }
+        // Both specifications mentioned above require the last character to be a `let-dig` (letter or digit)
+        if !sub_part.ends_with(char::is_alphanumeric) {
+            return Error::InvalidCharacter.into();
+        }
+        if sub_part.len() > SUB_DOMAIN_MAX_LENGTH {
+            return Error::SubDomainTooLong.into();
+        }
+
+        if !is_atom(sub_part) {
+            return Error::InvalidCharacter.into();
+        }
     }
-    Error::InvalidCharacter.into()
+
+    Ok(())
 }
 
 fn parse_literal_domain(part: &str) -> Result<(), Error> {
@@ -1223,6 +1233,15 @@ mod tests {
             "example@abc-",
             Error::InvalidCharacter,
             Some("domain label ends with hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_14() {
+        expect(
+            "example@.com",
+            Error::SubDomainEmpty,
+            Some("subdomain label is empty"),
         );
     }
 
