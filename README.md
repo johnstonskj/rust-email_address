@@ -22,7 +22,7 @@ parts but does not yet support all the productions required for SMTP headers; fo
 
 ```rust
 use core::str::FromStr;
-use type_email_address::*;
+use email_address::*;
 
 assert!(EmailAddress::is_valid("user.name+tag+sorting@example.com"));
 

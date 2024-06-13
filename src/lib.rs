@@ -198,7 +198,7 @@ impl EmailAddress {
     ///
     /// ```
     /// use core::str::FromStr;
-    /// use type_email_address::EmailAddress;
+    /// use email_address::EmailAddress;
     ///
     /// let unchecked = "john.doe@example.com";
     /// let email = EmailAddress::from_str(unchecked).expect("email is not valid");
@@ -217,7 +217,7 @@ impl EmailAddress {
     /// the following:
     ///
     /// ```rust
-    /// use type_email_address::*;
+    /// use email_address::*;
     /// use core::str::FromStr;
     ///
     /// let is_valid = EmailAddress::from_str("johnstonskj@gmail.com").is_ok();
@@ -248,7 +248,7 @@ impl EmailAddress {
     /// address itself. So, `name@example.org` becomes `mailto:name@example.org`.
     ///
     /// ```rust
-    /// use type_email_address::*;
+    /// use email_address::*;
     /// use core::str::FromStr;
     ///
     /// assert_eq!(
@@ -268,7 +268,7 @@ impl EmailAddress {
     /// address.
     ///
     /// ```rust
-    /// use type_email_address::*;
+    /// use email_address::*;
     /// use core::str::FromStr;
     ///
     /// assert_eq!(
@@ -286,7 +286,7 @@ impl EmailAddress {
     /// allocation is required.
     ///
     /// ```rust
-    /// use type_email_address::*;
+    /// use email_address::*;
     /// use core::str::FromStr;
     ///
     /// assert_eq!(
@@ -305,7 +305,7 @@ impl EmailAddress {
     /// allocation is required.
     ///
     /// ```rust
-    /// use type_email_address::*;
+    /// use email_address::*;
     /// use core::str::FromStr;
     ///
     /// assert_eq!(
