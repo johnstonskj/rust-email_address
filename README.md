@@ -3,12 +3,11 @@
 A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newtype. 
 
 ![MIT License](https://img.shields.io/badge/license-mit-118811.svg)
-![Minimum Rust Version](https://img.shields.io/badge/Min%20Rust-1.40-green.svg)
+![Minimum Rust Version](https://img.shields.io/badge/Min%20Rust-1.70-green.svg)
 [![crates.io](https://img.shields.io/crates/v/email_address.svg)](https://crates.io/crates/email_address)
 [![docs.rs](https://docs.rs/email_address/badge.svg)](https://docs.rs/email_address)
-![Build](https://github.com/johnstonskj/rust-email_address/workflows/Rust/badge.svg)
-![Audit](https://github.com/johnstonskj/rust-email_address/workflows/Security%20audit/badge.svg)
-[![GitHub stars](https://img.shields.io/github/stars/johnstonskj/rust-email_address.svg)](https://github.com/johnstonskj/rust-email_address/stargazers)
+
+Fork of `rust-email-address` for `no_std` hoping to upstream later.
 
 Primarily for validation, the `EmailAddress` type is constructed with `FromStr::from_str` which will raise any
 parsing errors. Prior to constructions the functions `is_valid`, `is_valid_local_part`, and `is_valid_domain` may
@@ -22,6 +21,7 @@ parts but does not yet support all the productions required for SMTP headers; fo
 ## Example
 
 ```rust
+use core::str::FromStr;
 use email_address::*;
 
 assert!(EmailAddress::is_valid("user.name+tag+sorting@example.com"));
@@ -56,6 +56,11 @@ assert_eq!(
    IETF, Feb 2012.
    
 ## Changes
+
+**Version 0.3.0**
+
+* Make it `no_std`
+* MSRV Bump to 1.70 (may work earlier versions)
 
 **Version 0.2.3**
 

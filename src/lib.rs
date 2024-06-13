@@ -1,288 +1,18 @@
-/*!
-A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newtype.
-
-Primarily for validation, the `EmailAddress` type is constructed with `FromStr::from_str` which will raise any
-parsing errors. Prior to constructions the functions `is_valid`, `is_valid_local_part`, and `is_valid_domain` may
-also be used to test for validity without constructing an instance. This supports all of the RFC ASCII and UTF-8
-character set rules, quoted and unquoted local parts but does not yet support all of the productions required for SMTP
-headers; folding whitespace, comments, etc.
-
-# Example
-
-The following shoes the basic `is_valid` and `from_str` functions.
-
-```rust
-use email_address::*;
-use std::str::FromStr;
-assert!(EmailAddress::is_valid("user.name+tag+sorting@example.com"));
-
-assert_eq!(
-    EmailAddress::from_str("Abc.example.com"),
-    Error::MissingSeparator.into()
-);
-```
-
-The following shows the three format functions used to output an email address.
-
-```rust
-use email_address::*;
-use std::str::FromStr;
-
-let email = EmailAddress::from_str("johnstonsk@gmail.com").unwrap();
-
-assert_eq!(
-    email.to_string(),
-    "johnstonsk@gmail.com".to_string()
-);
-
-assert_eq!(
-    String::from(email.clone()),
-    "johnstonsk@gmail.com".to_string()
-);
-
-assert_eq!(
-    email.as_ref(),
-    "johnstonsk@gmail.com"
-);
-
-assert_eq!(
-    email.to_uri(),
-    "mailto:johnstonsk@gmail.com".to_string()
-);
-
-assert_eq!(
-    email.to_display("Simon Johnston"),
-    "Simon Johnston <johnstonsk@gmail.com>".to_string()
-);
-```
-
-
-# Specifications
-
-1. RFC 1123: [_Requirements for Internet Hosts -- Application and Support_](https://tools.ietf.org/html/rfc1123),
-   IETF,Oct 1989.
-1. RFC 3629: [_UTF-8, a transformation format of ISO 10646_](https://tools.ietf.org/html/rfc3629),
-   IETF, Nov 2003.
-1. RFC 3696: [_Application Techniques for Checking and Transformation of
-   Names_](https://tools.ietf.org/html/rfc3696), IETF, Feb 2004.
-1. RFC 4291 [_IP Version 6 Addressing Architecture_](https://tools.ietf.org/html/rfc4291),
-   IETF, Feb 2006.
-1. RFC 5234: [_Augmented BNF for Syntax Specifications: ABNF_](https://tools.ietf.org/html/rfc5234),
-   IETF, Jan 2008.
-1. RFC 5321: [_Simple Mail Transfer Protocol_](https://tools.ietf.org/html/rfc5321),
-   IETF, Oct 2008.
-1. RFC 5322: [_Internet Message Format_](https://tools.ietf.org/html/rfc5322), I
-   ETF, Oct 2008.
-1. RFC 5890: [_Internationalized Domain Names for Applications (IDNA): Definitions and Document
-   Framework_](https://tools.ietf.org/html/rfc5890), IETF, Aug 2010.
-1. RFC 6531: [_SMTP Extension for Internationalized Email_](https://tools.ietf.org/html/rfc6531),
-   IETF, Feb 2012
-1. RFC 6532: [_Internationalized Email Headers_](https://tools.ietf.org/html/rfc6532),
-   IETF, Feb 2012.
-
-From RFC 5322: §3.2.1. [Quoted characters](https://tools.ietf.org/html/rfc5322#section-3.2.1):
-
-```ebnf
-quoted-pair     =   ("\" (VCHAR / WSP)) / obs-qp
-```
-
-From RFC 5322: §3.2.2. [Folding White Space and Comments](https://tools.ietf.org/html/rfc5322#section-3.2.2):
-
-```ebnf
-FWS             =   ([*WSP CRLF] 1*WSP) /  obs-FWS
-                                       ; Folding white space
-
-ctext           =   %d33-39 /          ; Printable US-ASCII
-                    %d42-91 /          ;  characters not including
-                    %d93-126 /         ;  "(", ")", or "\"
-                    obs-ctext
-
-ccontent        =   ctext / quoted-pair / comment
-
-comment         =   "(" *([FWS] ccontent) [FWS] ")"
-
-CFWS            =   (1*([FWS] comment) [FWS]) / FWS
-```
-
-From RFC 5322: §3.2.3. [Atom](https://tools.ietf.org/html/rfc5322#section-3.2.3):
-
-```ebnf
-atext           =   ALPHA / DIGIT /    ; Printable US-ASCII
-                    "!" / "#" /        ;  characters not including
-                    "$" / "%" /        ;  specials.  Used for atoms.
-                    "&" / "'" /
-                    "*" / "+" /
-                    "-" / "/" /
-                    "=" / "?" /
-                    "^" / "_" /
-                    "`" / "{" /
-                    "|" / "}" /
-                    "~"
-
-atom            =   [CFWS] 1*atext [CFWS]
-
-dot-atom-text   =   1*atext *("." 1*atext)
-
-dot-atom        =   [CFWS] dot-atom-text [CFWS]
-
-specials        =   "(" / ")" /        ; Special characters that do
-                    "<" / ">" /        ;  not appear in atext
-                    "[" / "]" /
-                    ":" / ";" /
-                    "@" / "\" /
-                    "," / "." /
-                    DQUOTE
-```
-
-From RFC 5322: §3.2.4. [Quoted Strings](https://tools.ietf.org/html/rfc5322#section-3.2.4):
-
-```ebnf
-qtext           =   %d33 /             ; Printable US-ASCII
-                    %d35-91 /          ;  characters not including
-                    %d93-126 /         ;  "\" or the quote character
-                    obs-qtext
-
-qcontent        =   qtext / quoted-pair
-
-quoted-string   =   [CFWS]
-                    DQUOTE *([FWS] qcontent) [FWS] DQUOTE
-                    [CFWS]
-```
-
-From RFC 5322, §3.4.1. [Addr-Spec Specification](https://tools.ietf.org/html/rfc5322#section-3.4.1):
-
-```ebnf
-addr-spec       =   local-part "@" domain
-
-local-part      =   dot-atom / quoted-string / obs-local-part
-
-domain          =   dot-atom / domain-literal / obs-domain
-
-domain-literal  =   [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
-
-dtext           =   %d33-90 /          ; Printable US-ASCII
-                    %d94-126 /         ;  characters not including
-                    obs-dtext          ;  "[", "]", or "\"
-```
-
-RFC 3696, §3. [Restrictions on email addresses](https://tools.ietf.org/html/rfc3696#section-3)
-describes in detail the quoting of characters in an address.
-
-## Unicode
-
-RFC 6531, §3.3. [Extended Mailbox Address Syntax](https://tools.ietf.org/html/rfc6531#section-3.3)
-extends the rules above for non-ASCII character sets.
-
-```ebnf
-sub-domain   =/  U-label
-    ; extend the definition of sub-domain in RFC 5321, Section 4.1.2
-
-atext   =/  UTF8-non-ascii
-    ; extend the implicit definition of atext in
-    ; RFC 5321, Section 4.1.2, which ultimately points to
-    ; the actual definition in RFC 5322, Section 3.2.3
-
-qtextSMTP  =/ UTF8-non-ascii
-    ; extend the definition of qtextSMTP in RFC 5321, Section 4.1.2
-
-esmtp-value  =/ UTF8-non-ascii
-    ; extend the definition of esmtp-value in RFC 5321, Section 4.1.2
-```
-
-RFC 6532: §3.1 [UTF-8 Syntax and Normalization](https://tools.ietf.org/html/rfc6532#section-3.1),
-and §3.2 [Syntax Extensions to RFC 5322](https://tools.ietf.org/html/rfc6532#section-3.2) extend
-the syntax above with:
-
-```ebnf
-UTF8-non-ascii  =   UTF8-2 / UTF8-3 / UTF8-4
-
-...
-
-VCHAR   =/  UTF8-non-ascii
-
-ctext   =/  UTF8-non-ascii
-
-atext   =/  UTF8-non-ascii
-
-qtext   =/  UTF8-non-ascii
-
-text    =/  UTF8-non-ascii
-              ; note that this upgrades the body to UTF-8
-
-dtext   =/  UTF8-non-ascii
-```
-
-These in turn refer to RFC 6529 §4. [Syntax of UTF-8 Byte Sequences](https://tools.ietf.org/html/rfc3629#section-4):
-
-> A UTF-8 string is a sequence of octets representing a sequence of UCS
-> characters.  An octet sequence is valid UTF-8 only if it matches the
-> following syntax, which is derived from the rules for encoding UTF-8
-> and is expressed in the ABNF of \[RFC2234\].
-
-```ebnf
-   UTF8-octets = *( UTF8-char )
-   UTF8-char   = UTF8-1 / UTF8-2 / UTF8-3 / UTF8-4
-   UTF8-1      = %x00-7F
-   UTF8-2      = %xC2-DF UTF8-tail
-   UTF8-3      = %xE0 %xA0-BF UTF8-tail / %xE1-EC 2( UTF8-tail ) /
-                 %xED %x80-9F UTF8-tail / %xEE-EF 2( UTF8-tail )
-   UTF8-4      = %xF0 %x90-BF 2( UTF8-tail ) / %xF1-F3 3( UTF8-tail ) /
-                 %xF4 %x80-8F 2( UTF8-tail )
-   UTF8-tail   = %x80-BF
-```
-
-Comments in addresses are discussed in RFC 5322 Appendix A.5. [White Space, Comments, and Other
-Oddities](https://tools.ietf.org/html/rfc5322#appendix-A.5).
-
-An informal description can be found on [Wikipedia](https://en.wikipedia.org/wiki/Email_address).
-
-*/
-
 #![warn(
-    unknown_lints,
-    // ---------- Stylistic
-    absolute_paths_not_starting_with_crate,
-    elided_lifetimes_in_paths,
-    explicit_outlives_requirements,
-    macro_use_extern_crate,
-    nonstandard_style, /* group */
-    noop_method_call,
-    rust_2018_idioms,
-    single_use_lifetimes,
-    trivial_casts,
-    trivial_numeric_casts,
-    // ---------- Future
-    future_incompatible, /* group */
-    rust_2021_compatibility, /* group */
-    // ---------- Public
-    missing_debug_implementations,
+    clippy::unwrap_used,
     missing_docs,
-    unreachable_pub,
-    // ---------- Unsafe
-    unsafe_code,
-    unsafe_op_in_unsafe_fn,
-    // ---------- Unused
-    unused, /* group */
+    rust_2018_idioms,
+    unused_lifetimes,
+    unused_qualifications
 )]
-#![deny(
-    // ---------- Public
-    exported_private_dependencies,
-    private_in_public,
-    // ---------- Deprecated
-    anonymous_parameters,
-    bare_trait_objects,
-    ellipsis_inclusive_range_patterns,
-    // ---------- Unsafe
-    deref_nullptr,
-    drop_bounds,
-    dyn_drop,
-)]
+#![allow(clippy::single_match, rustdoc::bare_urls, unused_qualifications)]
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+#![doc = include_str!("../README.md")]
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
-use std::str::FromStr;
+
+use core::str::FromStr;
 
 // ------------------------------------------------------------------------------------------------
 // Public Types
@@ -326,7 +56,7 @@ pub enum Error {
 /// independently.
 ///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde_support", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct EmailAddress(String);
 
 // ------------------------------------------------------------------------------------------------
@@ -359,8 +89,8 @@ const UTF8_START: char = '\u{0080}';
 
 const MAILTO_URI_PREFIX: &str = "mailto:";
 
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Error::InvalidCharacter => write!(f, "Invalid character."),
             Error::LocalPartEmpty => write!(f, "Local part is empty."),
@@ -390,8 +120,10 @@ impl Display for Error {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for Error {}
 
+#[cfg(feature = "std")]
 impl<T> From<Error> for std::result::Result<T, Error> {
     fn from(err: Error) -> Self {
         Err(err)
@@ -400,13 +132,13 @@ impl<T> From<Error> for std::result::Result<T, Error> {
 
 // ------------------------------------------------------------------------------------------------
 
-impl Display for EmailAddress {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for EmailAddress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl FromStr for EmailAddress {
+impl core::str::FromStr for EmailAddress {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -414,6 +146,7 @@ impl FromStr for EmailAddress {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl From<EmailAddress> for String {
     fn from(email: EmailAddress) -> Self {
         email.0
@@ -426,7 +159,7 @@ impl AsRef<str> for EmailAddress {
     }
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for EmailAddress {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -439,7 +172,7 @@ impl<'de> Deserialize<'de> for EmailAddress {
         impl Visitor<'_> for EmailAddressVisitor {
             type Value = EmailAddress;
 
-            fn expecting(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
+            fn expecting(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 fmt.write_str("data")
             }
 
@@ -464,7 +197,7 @@ impl EmailAddress {
     /// call this method if the address is known to be valid.
     ///
     /// ```
-    /// use std::str::FromStr;
+    /// use core::str::FromStr;
     /// use email_address::EmailAddress;
     ///
     /// let unchecked = "john.doe@example.com";
@@ -474,6 +207,7 @@ impl EmailAddress {
     ///
     /// assert_eq!("John Doe <john.doe@example.com>", email.to_display("John Doe"));
     /// ```
+    #[cfg(feature = "alloc")]
     pub fn new_unchecked(address: String) -> Self {
         Self(address)
     }
@@ -484,7 +218,7 @@ impl EmailAddress {
     ///
     /// ```rust
     /// use email_address::*;
-    /// use std::str::FromStr;
+    /// use core::str::FromStr;
     ///
     /// let is_valid = EmailAddress::from_str("johnstonskj@gmail.com").is_ok();
     /// ```
@@ -515,7 +249,7 @@ impl EmailAddress {
     ///
     /// ```rust
     /// use email_address::*;
-    /// use std::str::FromStr;
+    /// use core::str::FromStr;
     ///
     /// assert_eq!(
     ///     EmailAddress::from_str("name@example.org").unwrap().to_uri(),
@@ -535,7 +269,7 @@ impl EmailAddress {
     ///
     /// ```rust
     /// use email_address::*;
-    /// use std::str::FromStr;
+    /// use core::str::FromStr;
     ///
     /// assert_eq!(
     ///     EmailAddress::from_str("name@example.org").unwrap().to_display("My Name"),
@@ -553,7 +287,7 @@ impl EmailAddress {
     ///
     /// ```rust
     /// use email_address::*;
-    /// use std::str::FromStr;
+    /// use core::str::FromStr;
     ///
     /// assert_eq!(
     ///     EmailAddress::from_str("name@example.org").unwrap().local_part(),
@@ -572,7 +306,7 @@ impl EmailAddress {
     ///
     /// ```rust
     /// use email_address::*;
-    /// use std::str::FromStr;
+    /// use core::str::FromStr;
     ///
     /// assert_eq!(
     ///     EmailAddress::from_str("name@example.org").unwrap().domain(),
@@ -809,6 +543,8 @@ fn is_ctext(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use core::str::FromStr;
 
     fn is_valid(address: &str, test_case: Option<&str>) {
         if let Some(test_case) = test_case {
