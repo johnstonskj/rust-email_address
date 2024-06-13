@@ -1,14 +1,16 @@
 name: Rust
 
-on: [push]
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+env:
+  RUST_BACKTRACE: 1
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: ubuntu-latest
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
