@@ -279,7 +279,7 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 )]
 
 #[cfg(feature = "serde_support")]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
@@ -326,7 +326,6 @@ pub enum Error {
 /// independently.
 ///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde_support", derive(Serialize))]
 pub struct EmailAddress(String);
 
 // ------------------------------------------------------------------------------------------------
@@ -423,6 +422,16 @@ impl From<EmailAddress> for String {
 impl AsRef<str> for EmailAddress {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+#[cfg(feature = "serde_support")]
+impl Serialize for EmailAddress {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0)
     }
 }
 
