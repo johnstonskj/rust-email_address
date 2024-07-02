@@ -809,6 +809,8 @@ fn is_ctext(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use claims::{assert_ok, assert_ok_eq};
+    use serde_assert::{Deserializer, Serializer, Token};
 
     fn is_valid(address: &str, test_case: Option<&str>) {
         if let Some(test_case) = test_case {
@@ -1108,5 +1110,17 @@ mod tests {
     fn test_error_traits() {
         is_send::<Error>();
         is_sync::<Error>();
+    }
+
+    #[cfg(feature = "serde_support")]
+    #[test]
+    fn test_serde_roundtrip() {
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+        let serializer = Serializer::builder().build();
+        let mut deserializer =
+            Deserializer::builder(assert_ok!(email.serialize(&serializer))).build();
+
+        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
     }
 }
