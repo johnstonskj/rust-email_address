@@ -742,17 +742,18 @@ fn parse_local_part(part: &str, _options: Options) -> Result<(), Error> {
 
 fn parse_quoted_local_part(part: &str) -> Result<(), Error> {
     if is_qcontent(part) {
-        return Ok(());
+        Ok(())
     } else {
+        Error::InvalidCharacter.into()
     }
-    Error::InvalidCharacter.into()
 }
 
 fn parse_unquoted_local_part(part: &str) -> Result<(), Error> {
     if is_dot_atom_text(part) {
-        return Ok(());
+        Ok(())
+    } else {
+        Error::InvalidCharacter.into()
     }
-    Error::InvalidCharacter.into()
 }
 
 fn parse_domain(part: &str, options: Options) -> Result<(), Error> {
