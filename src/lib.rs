@@ -1174,6 +1174,7 @@ mod tests {
         );
     }
 
+    // Regression test: GitHub issue #26
     #[cfg(feature = "serde_support")]
     #[test]
     fn test_serde_roundtrip() {
