@@ -723,6 +723,16 @@ fn parse_domain(part: &str) -> Result<(), Error> {
 fn parse_text_domain(part: &str) -> Result<(), Error> {
     if is_dot_atom_text(part) {
         for sub_part in part.split(DOT) {
+            // As per https://www.rfc-editor.org/rfc/rfc1034#section-3.5, the domain label needs to start with a `letter`;
+            // however, https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address specifies a label can start
+            // with a `let-dig` (letter or digit), so we allow the wider range
+            if !sub_part.starts_with(char::is_alphanumeric) {
+                return Error::InvalidCharacter.into();
+            }
+            // Both specifications mentioned above require the last character to be a `let-dig` (letter or digit)
+            if !sub_part.ends_with(char::is_alphanumeric) {
+                return Error::InvalidCharacter.into();
+            }
             if sub_part.len() > SUB_DOMAIN_MAX_LENGTH {
                 return Error::SubDomainTooLong.into();
             }
@@ -1133,6 +1143,87 @@ mod tests {
     #[test]
     fn test_bad_example_04() {
         expect("simon@", Error::DomainEmpty, Some("domain is empty"));
+    }
+
+    #[test]
+    fn test_bad_example_05() {
+        expect(
+            "example@invalid-.com",
+            Error::InvalidCharacter,
+            Some("domain label ends with hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_06() {
+        expect(
+            "example@-invalid.com",
+            Error::InvalidCharacter,
+            Some("domain label starts with hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_07() {
+        expect(
+            "example@invalid.com-",
+            Error::InvalidCharacter,
+            Some("domain label starts ends hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_08() {
+        expect(
+            "example@inv-.alid-.com",
+            Error::InvalidCharacter,
+            Some("subdomain label ends hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_09() {
+        expect(
+            "example@-inv.alid-.com",
+            Error::InvalidCharacter,
+            Some("subdomain label starts hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_10() {
+        expect(
+            "example@-.com",
+            Error::InvalidCharacter,
+            Some("domain label is hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_11() {
+        expect(
+            "example@-",
+            Error::InvalidCharacter,
+            Some("domain label is hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_12() {
+        expect(
+            "example@-abc",
+            Error::InvalidCharacter,
+            Some("domain label starts with hyphen"),
+        );
+    }
+
+    #[test]
+    fn test_bad_example_13() {
+        expect(
+            "example@abc-",
+            Error::InvalidCharacter,
+            Some("domain label ends with hyphen"),
+        );
     }
 
     // make sure Error impl Send + Sync
