@@ -267,7 +267,6 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 #![deny(
     // ---------- Public
     exported_private_dependencies,
-    private_in_public,
     // ---------- Deprecated
     anonymous_parameters,
     bare_trait_objects,
@@ -544,7 +543,7 @@ impl EmailAddress {
     /// ```
     /// use email_address::{EmailAddress, Options};
     ///
-    /// let options = Options { minimum_sub_domains: 2 };
+    /// let options = Options { minimum_sub_domains: 2, ..Options::default() };
     /// let result = EmailAddress::parse_with_options("john.doe@localhost", options).is_ok();
     ///
     /// assert_eq!(result, false);
