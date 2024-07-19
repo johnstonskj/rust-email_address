@@ -278,7 +278,7 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 )]
 
 #[cfg(feature = "serde_support")]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
@@ -354,8 +354,7 @@ impl Default for Options {
 /// create an instance. The various components of the email _are not_ parsed out to be accessible
 /// independently.
 ///
-#[derive(Debug, Clone, Eq)]
-#[cfg_attr(feature = "serde_support", derive(Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EmailAddress(String);
 
 // ------------------------------------------------------------------------------------------------
@@ -482,6 +481,16 @@ impl AsRef<str> for EmailAddress {
 }
 
 #[cfg(feature = "serde_support")]
+impl Serialize for EmailAddress {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+#[cfg(feature = "serde_support")]
 impl<'de> Deserialize<'de> for EmailAddress {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -495,7 +504,7 @@ impl<'de> Deserialize<'de> for EmailAddress {
             type Value = EmailAddress;
 
             fn expecting(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
-                fmt.write_str("data")
+                fmt.write_str("string containing a valid email address")
             }
 
             fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
@@ -921,6 +930,9 @@ fn is_ctext(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use claims::{assert_err_eq, assert_ok, assert_ok_eq};
+    use serde::de::{Error as _, Unexpected};
+    use serde_assert::{Deserializer, Serializer, Token};
 
     fn is_valid(address: &str, test_case: Option<&str>) {
         if let Some(test_case) = test_case {
@@ -1514,8 +1526,72 @@ mod tests {
         is_sync::<Error>();
     }
 
+    #[cfg(feature = "serde_support")]
     #[test]
-    // BUG: https://github.com/johnstonskj/rust-email_address/issues/11
+    fn test_serialize() {
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+        let serializer = Serializer::builder().build();
+
+        assert_ok_eq!(
+            email.serialize(&serializer),
+            [Token::Str("simple@example.com".to_owned())]
+        );
+    }
+
+    #[cfg(feature = "serde_support")]
+    #[test]
+    fn test_deserialize() {
+        let mut deserializer =
+            Deserializer::builder([Token::Str("simple@example.com".to_owned())]).build();
+
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
+    }
+
+    #[cfg(feature = "serde_support")]
+    #[test]
+    fn test_deserialize_invalid_value() {
+        let mut deserializer =
+            Deserializer::builder([Token::Str("Abc.example.com".to_owned())]).build();
+
+        assert_err_eq!(
+            EmailAddress::deserialize(&mut deserializer),
+            serde_assert::de::Error::invalid_value(
+                Unexpected::Str("Abc.example.com"),
+                &"Missing separator character '@'."
+            )
+        );
+    }
+
+    #[cfg(feature = "serde_support")]
+    #[test]
+    fn test_deserialize_invalid_type() {
+        let mut deserializer = Deserializer::builder([Token::U64(42)]).build();
+
+        assert_err_eq!(
+            EmailAddress::deserialize(&mut deserializer),
+            serde_assert::de::Error::invalid_type(
+                Unexpected::Unsigned(42),
+                &"string containing a valid email address"
+            )
+        );
+    }
+
+    // Regression test: GitHub issue #26
+    #[cfg(feature = "serde_support")]
+    #[test]
+    fn test_serde_roundtrip() {
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+        let serializer = Serializer::builder().build();
+        let mut deserializer =
+            Deserializer::builder(assert_ok!(email.serialize(&serializer))).build();
+
+        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
+
+    #[test]
+    // Regression test: GitHub issue #11
     fn test_eq_name_case_sensitive_local() {
         let email = EmailAddress::new_unchecked("simon@example.com");
 
@@ -1525,7 +1601,7 @@ mod tests {
     }
 
     #[test]
-    // BUG: https://github.com/johnstonskj/rust-email_address/issues/11
+    // Regression test: GitHub issue #11
     fn test_eq_name_case_insensitive_domain() {
         let email = EmailAddress::new_unchecked("simon@example.com");
 
