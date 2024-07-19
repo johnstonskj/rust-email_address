@@ -59,9 +59,14 @@ assert_eq!(
 
 ## Changes
 
+### Version 0.2.7
+
+* Feature: added builder functions to the `Option` type.
+* Documentation: added examples to the `Option` type documentation.
+
 ### Version 0.2.6
 
-- Fix: merge issues.
+* Fix: merge issues.
 
 ### Version 0.2.5
 
