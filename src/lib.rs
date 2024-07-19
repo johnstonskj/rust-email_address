@@ -279,7 +279,6 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize, Serializer};
-use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::str::FromStr;
@@ -503,7 +502,7 @@ impl<'de> Deserialize<'de> for EmailAddress {
         impl Visitor<'_> for EmailAddressVisitor {
             type Value = EmailAddress;
 
-            fn expecting(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
+            fn expecting(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
                 fmt.write_str("string containing a valid email address")
             }
 
@@ -927,12 +926,78 @@ fn is_ctext(s: &str) -> bool {
 // Unit Tests
 // ------------------------------------------------------------------------------------------------
 
+#[cfg(feature = "serde_support")]
 #[cfg(test)]
-mod tests {
+mod serde_tests {
     use super::*;
     use claims::{assert_err_eq, assert_ok, assert_ok_eq};
     use serde::de::{Error as _, Unexpected};
     use serde_assert::{Deserializer, Serializer, Token};
+
+    #[test]
+    fn test_serialize() {
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+        let serializer = Serializer::builder().build();
+
+        assert_ok_eq!(
+            email.serialize(&serializer),
+            [Token::Str("simple@example.com".to_owned())]
+        );
+    }
+
+    #[test]
+    fn test_deserialize() {
+        let mut deserializer =
+            Deserializer::builder([Token::Str("simple@example.com".to_owned())]).build();
+
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
+    }
+
+    #[test]
+    fn test_deserialize_invalid_value() {
+        let mut deserializer =
+            Deserializer::builder([Token::Str("Abc.example.com".to_owned())]).build();
+
+        assert_err_eq!(
+            EmailAddress::deserialize(&mut deserializer),
+            serde_assert::de::Error::invalid_value(
+                Unexpected::Str("Abc.example.com"),
+                &"Missing separator character '@'."
+            )
+        );
+    }
+
+    #[test]
+    fn test_deserialize_invalid_type() {
+        let mut deserializer = Deserializer::builder([Token::U64(42)]).build();
+
+        assert_err_eq!(
+            EmailAddress::deserialize(&mut deserializer),
+            serde_assert::de::Error::invalid_type(
+                Unexpected::Unsigned(42),
+                &"string containing a valid email address"
+            )
+        );
+    }
+
+    // Regression test: GitHub issue #26
+    #[test]
+    fn test_serde_roundtrip() {
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+        let serializer = Serializer::builder().build();
+        let mut deserializer =
+            Deserializer::builder(assert_ok!(email.serialize(&serializer))).build();
+
+        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
 
     fn is_valid(address: &str, test_case: Option<&str>) {
         if let Some(test_case) = test_case {
@@ -1524,71 +1589,6 @@ mod tests {
     fn test_error_traits() {
         is_send::<Error>();
         is_sync::<Error>();
-    }
-
-    #[cfg(feature = "serde_support")]
-    #[test]
-    fn test_serialize() {
-        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
-
-        let serializer = Serializer::builder().build();
-
-        assert_ok_eq!(
-            email.serialize(&serializer),
-            [Token::Str("simple@example.com".to_owned())]
-        );
-    }
-
-    #[cfg(feature = "serde_support")]
-    #[test]
-    fn test_deserialize() {
-        let mut deserializer =
-            Deserializer::builder([Token::Str("simple@example.com".to_owned())]).build();
-
-        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
-        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
-    }
-
-    #[cfg(feature = "serde_support")]
-    #[test]
-    fn test_deserialize_invalid_value() {
-        let mut deserializer =
-            Deserializer::builder([Token::Str("Abc.example.com".to_owned())]).build();
-
-        assert_err_eq!(
-            EmailAddress::deserialize(&mut deserializer),
-            serde_assert::de::Error::invalid_value(
-                Unexpected::Str("Abc.example.com"),
-                &"Missing separator character '@'."
-            )
-        );
-    }
-
-    #[cfg(feature = "serde_support")]
-    #[test]
-    fn test_deserialize_invalid_type() {
-        let mut deserializer = Deserializer::builder([Token::U64(42)]).build();
-
-        assert_err_eq!(
-            EmailAddress::deserialize(&mut deserializer),
-            serde_assert::de::Error::invalid_type(
-                Unexpected::Unsigned(42),
-                &"string containing a valid email address"
-            )
-        );
-    }
-
-    // Regression test: GitHub issue #26
-    #[cfg(feature = "serde_support")]
-    #[test]
-    fn test_serde_roundtrip() {
-        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
-
-        let serializer = Serializer::builder().build();
-        let mut deserializer =
-            Deserializer::builder(assert_ok!(email.serialize(&serializer))).build();
-
-        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
     }
 
     #[test]
