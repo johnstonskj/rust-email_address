@@ -345,10 +345,47 @@ pub struct Options {
     ///
     /// Sets the minimum number of domain segments that must exist to parse successfully.
     ///
+    /// ```rust
+    /// use email_address::*;
+    ///
+    /// assert!(
+    ///     EmailAddress::parse_with_options(
+    ///         "simon@localhost",
+    ///         Options::default().with_no_minimum_sub_domains(),
+    ///     ).is_ok()
+    /// );
+    /// assert_eq!(
+    ///     EmailAddress::parse_with_options(
+    ///         "simon@localhost",
+    ///         Options::default().with_required_tld()
+    ///     ),
+    ///     Err(Error::DomainTooFew)
+    /// );
+    /// ```
+    ///
     pub minimum_sub_domains: usize,
 
     ///
     /// Specifies if domain literals are allowed. Defaults to `true`.
+    ///
+    /// ```rust
+    /// use email_address::*;
+    ///
+    /// assert!(
+    ///     EmailAddress::parse_with_options(
+    ///         "email@[127.0.0.256]",
+    ///         Options::default().with_domain_literal()
+    ///     ).is_ok()
+    /// );
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::parse_with_options(
+    ///         "email@[127.0.0.256]",
+    ///         Options::default().without_domain_literal()
+    ///     ),
+    ///     Err(Error::UnsupportedDomainLiteral),
+    /// );
+    /// ```
     ///
     pub allow_domain_literal: bool,
 
@@ -491,6 +528,23 @@ impl Options {
     pub const fn with_minimum_sub_domains(self, min: usize) -> Self {
         Self {
             minimum_sub_domains: min,
+            ..self
+        }
+    }
+    #[inline(always)]
+    /// Set the value of `minimum_sub_domains` to zero.
+    pub const fn with_no_minimum_sub_domains(self) -> Self {
+        Self {
+            minimum_sub_domains: 0,
+            ..self
+        }
+    }
+    #[inline(always)]
+    /// Set the value of `minimum_sub_domains` to two, this has the effect of requiring a
+    /// domain name with a top-level domain (TLD).
+    pub const fn with_required_tld(self) -> Self {
+        Self {
+            minimum_sub_domains: 2,
             ..self
         }
     }
@@ -963,11 +1017,13 @@ fn parse_text_domain(part: &str, options: Options) -> Result<(), Error> {
         if sub_part.is_empty() {
             return Error::SubDomainEmpty.into();
         }
+
         // As per https://www.rfc-editor.org/rfc/rfc1034#section-3.5,
         // the domain label needs to start with a `letter`;
         // however, https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address
         // specifies a label can start
         // with a `let-dig` (letter or digit), so we allow the wider range
+
         if !sub_part.starts_with(char::is_alphanumeric) {
             return Error::InvalidCharacter.into();
         }
@@ -976,6 +1032,7 @@ fn parse_text_domain(part: &str, options: Options) -> Result<(), Error> {
         if !sub_part.ends_with(char::is_alphanumeric) {
             return Error::InvalidCharacter.into();
         }
+
         if sub_part.len() > SUB_DOMAIN_MAX_LENGTH {
             return Error::SubDomainTooLong.into();
         }
@@ -1813,6 +1870,24 @@ mod tests {
             Options::default().without_display_text(),
             Error::UnsupportedDisplayName,
             Some("unsupported display name (1)"),
+        );
+    }
+
+    #[test]
+    // Regression test: GitHub issue #23
+    fn test_missing_tld() {
+        EmailAddress::parse_with_options("simon@localhost", Options::default()).unwrap();
+        EmailAddress::parse_with_options(
+            "simon@localhost",
+            Options::default().with_no_minimum_sub_domains(),
+        )
+        .unwrap();
+
+        expect_with_options(
+            "simon@localhost",
+            Options::default().with_required_tld(),
+            Error::DomainTooFew,
+            Some("too few domain segments"),
         );
     }
 
