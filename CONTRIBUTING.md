@@ -19,30 +19,50 @@ to abide by our [code of conduct](./CODE_OF_CONDUCT.md), and [License](./LICENSE
 
 Fork, then clone the repo:
 
-    git clone git@github.com:johnstonskj/{{repository-name}}.git
+```
+git clone git@github.com:johnstonskj/{{repository-name}}.git
+```
 
 Ensure you have a good Rust install, usually managed by [Rustup](https://rustup.rs/).
 You can ensure the latest tools with the following:
 
-    rustup update
+```
+rustup update
+```
 
 Make sure the tests pass:
 
-    cargo test --package {{package-name}} --no-fail-fast -- --exact
-    cargo test --package {{package-name}} --no-fail-fast --all-features -- --exact
-    cargo test --package {{package-name}} --no-fail-fast --no-default-features -- --exact
+```
+cargo test --package {{package-name}} --no-fail-fast -- --exact
+cargo test --package {{package-name}} --no-fail-fast --all-features -- --exact
+cargo test --package {{package-name}} --no-fail-fast --no-default-features -- --exact
+```
 
-Make your change. Add tests, and documentation, for your change. Ensure not only
-that tests pass, but the following all run successfully.
+Make your change. Add tests, and documentation, for your change. For tests
+please add a comment of the form:
 
-    cargo doc --all-features --no-deps
-    cargo fmt
-    cargo clippy
+```rust
+#[test]
+// Regression test: GitHub issue #11
+// or
+// Feature test: GitHub PR: #15
+fn test_something() { }
+```
+
+Ensure not only that tests pass, but the following all run successfully.
+
+```
+cargo doc --all-features --no-deps
+cargo fmt
+cargo clippy
+```
 
 If you have made any changes to `Cargo.toml`, also check:
 
-    cargo outdated --depth 1
-    cargo audit
+```
+cargo outdated --depth 1
+cargo audit
+```
 
 Push to your fork and [submit a pull request](../../compare/) using our [template](./pull_request_template.md).
 
