@@ -59,6 +59,10 @@ assert_eq!(
 
 ## Changes
 
+### Version 0.2.6
+
+- Fix: merge issues.
+
 ### Version 0.2.5
 
 * Feature: Pull Request #15 -- Potential enhancement to add any free-text as

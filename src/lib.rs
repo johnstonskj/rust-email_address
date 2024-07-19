@@ -354,7 +354,7 @@ impl Default for Options {
 /// create an instance. The various components of the email _are not_ parsed out to be accessible
 /// independently.
 ///
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct EmailAddress(String);
 
 // ------------------------------------------------------------------------------------------------
@@ -1589,6 +1589,7 @@ mod tests {
             Deserializer::builder(assert_ok!(email.serialize(&serializer))).build();
 
         assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
+    }
 
     #[test]
     // Regression test: GitHub issue #11
