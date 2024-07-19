@@ -1,16 +1,21 @@
 # How to contribute
 
-I'm really glad you're reading this, because we need volunteer developers to help this project continue to grow and improve.
+I'm really glad you're reading this, because we need volunteer developers to
+help this project continue to grow and improve.
 
-1. file [bugs](../../issues/new?assignees=&labels=bug&template=bug_report.md) and
-   [enhancement requests](../../issues/new?assignees=&labels=enhancement&template=feature_request.md)
-2. review the project documentation know if you find are issues, or missing content, there
-3. Fix or Add something and send us a pull request;  you may like to pick up one of the issues marked [help wanted](../../labels/help%20wanted) or [good first issue](../../labels/good%20first%20issue) as an introduction. Alternatively, [documentation](../../labels/documentation) issues can be a great way to understand the project and help improve the developer experience.
+1. file [bugs](../../issues/new?assignees=&labels=bug&template=bug_report.md) and [enhancement requests](../../issues/new?assignees=&labels=enhancement&template=feature_request.md)
+2. review the project documentation know if you find are issues, or missing
+   content, there
+3. Fix or Add something and send us a pull request; you may like to pick up one
+   of the issues marked [help wanted](../../labels/help%20wanted) or [good first issue](../../labels/good%20first%20issue) as an introduction.
+   Alternatively, [documentation](../../labels/documentation) issues can be a great way to understand the
+   project and help improve the developer experience.
 
 ## Submitting changes
 
 
-We love pull requests from everyone. By participating in this project, you agree to abide by our [code of conduct](./CODE_OF_CONDUCT.md), and [License](./LICENSE).
+We love pull requests from everyone. By participating in this project, you agree
+to abide by our [code of conduct](./CODE_OF_CONDUCT.md), and [License](./LICENSE).
 
 Fork, then clone the repo:
 
@@ -23,21 +28,20 @@ You can ensure the latest tools with the following:
 
 Make sure the tests pass:
 
+    cargo test --package {{package-name}} --no-fail-fast -- --exact
     cargo test --package {{package-name}} --no-fail-fast --all-features -- --exact
+    cargo test --package {{package-name}} --no-fail-fast --no-default-features -- --exact
 
-Make your change. Add tests, and documentation, for your change. Ensure not only that tests pass, but the following all run successfully.
+Make your change. Add tests, and documentation, for your change. Ensure not only
+that tests pass, but the following all run successfully.
 
     cargo doc --all-features --no-deps
     cargo fmt
     cargo clippy
 
-If you made changes to the book source, ensure the following runs successfully
-
-    mdbook build
-
 If you have made any changes to `Cargo.toml`, also check:
 
-    cargo outdated
+    cargo outdated --depth 1
     cargo audit
 
 Push to your fork and [submit a pull request](../../compare/) using our [template](./pull_request_template.md).
@@ -48,16 +52,20 @@ some changes or improvements or alternatives.
 
 Some things that will increase the chance that your pull request is accepted:
 
-* Write unit tests. 
+* Write unit tests.
 * Write API documentation.
 * Write a [good commit message](https://cbea.ms/git-commit/https://cbea.ms/git-commit/).
 
 ## Coding conventions
 
-The primary tool for coding conventions is rustfmt, and specifically `cargo fmt` is a part of the build process and will cause Actions to fail. 
+The primary tool for coding conventions is rustfmt, and specifically `cargo fmt`
+is a part of the build process and will cause Actions to fail.
 
-DO NOT create or update any existing `rustfmt.toml` file to change the default formatting rules.
+DO NOT create or update any existing `rustfmt.toml` file to change the default
+formatting rules.
 
-DO NOT alter any `warn` or `deny` library attributes. 
+DO NOT alter any `warn` or `deny` library attributes.
 
-DO NOT add any `feature` attributes that would prohibit building on the stable channel. In some cases new crate-level features can be used to introduce an unstable feature dependency but these MUST be clearly documented and optional.
+DO NOT add any `feature` attributes that would prohibit building on the stable
+channel. In some cases new crate-level features can be used to introduce an
+unstable feature dependency but these MUST be clearly documented and optional.
