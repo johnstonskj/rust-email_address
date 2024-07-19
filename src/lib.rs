@@ -353,7 +353,29 @@ pub struct Options {
     pub allow_domain_literal: bool,
 
     ///
-    /// Specified whether display text is allowed. Defaults to `true`.
+    /// Specified whether display text is allowed. Defaults to `true`. If you want strict
+    /// email-only checking setting this to `false` will remove support for the prefix string
+    /// and therefore the '<' and '>' brackets around the email part.
+    ///
+    /// ```rust
+    /// use email_address::*;
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::parse_with_options(
+    ///         "Simon <simon@example.com>",
+    ///         Options::default().without_display_text()
+    ///     ),
+    ///     Err(Error::UnsupportedDisplayName),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::parse_with_options(
+    ///         "<simon@example.com>",
+    ///         Options::default().without_display_text()
+    ///     ),
+    ///     Err(Error::InvalidCharacter),
+    /// );
+    /// ```
     ///
     pub allow_display_text: bool,
 }
@@ -836,12 +858,19 @@ fn parse_address(address: &str, options: Options) -> Result<EmailAddress, Error>
     // not then they'll return an `InvalidCharacter` error later.
     //
     let (local_part, domain, display) = split_parts(address)?;
-    if !display.is_empty() && !options.allow_display_text {
-        Err(Error::UnsupportedDisplayName)
-    } else {
-        parse_local_part(local_part, options)?;
-        parse_domain(domain, options)?;
-        Ok(EmailAddress(address.to_owned()))
+    match (
+        display.is_empty(),
+        local_part.starts_with(DISPLAY_START),
+        options.allow_display_text,
+    ) {
+        (false, _, false) => Err(Error::UnsupportedDisplayName),
+        (true, true, true) => Err(Error::MissingDisplayName),
+        (true, true, false) => Err(Error::InvalidCharacter),
+        _ => {
+            parse_local_part(local_part, options)?;
+            parse_domain(domain, options)?;
+            Ok(EmailAddress(address.to_owned()))
+        }
     }
 }
 
@@ -853,13 +882,7 @@ fn split_parts(address: &str) -> Result<(&str, &str, &str), Error> {
 
 fn split_display_email(text: &str) -> Result<(&str, &str), Error> {
     match text.rsplit_once(DISPLAY_SEP) {
-        None => {
-            if text.starts_with(DISPLAY_START) {
-                Err(Error::MissingDisplayName)
-            } else {
-                Ok(("", text))
-            }
-        }
+        None => Ok(("", text)),
         Some((left, right)) => {
             let right = right.trim();
             if !right.ends_with(DISPLAY_END) {
@@ -1766,6 +1789,17 @@ mod tests {
             "<simon@example.com>",
             Error::MissingDisplayName,
             Some("missing display name"),
+        );
+    }
+
+    #[test]
+    // Feature test: GitHub PR: #15
+    fn test_parse_display_empty_name_2() {
+        expect_with_options(
+            "<simon@example.com>",
+            Options::default().without_display_text(),
+            Error::InvalidCharacter,
+            Some("without display text '<' is invalid"),
         );
     }
 
