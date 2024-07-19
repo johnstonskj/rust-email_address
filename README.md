@@ -10,14 +10,16 @@ A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newt
 ![Audit](https://github.com/johnstonskj/rust-email_address/workflows/Security%20audit/badge.svg)
 [![GitHub stars](https://img.shields.io/github/stars/johnstonskj/rust-email_address.svg)](https://github.com/johnstonskj/rust-email_address/stargazers)
 
-Primarily for validation, the `EmailAddress` type is constructed with `FromStr::from_str` which will raise any
-parsing errors. Prior to constructions the functions `is_valid`, `is_valid_local_part`, and `is_valid_domain` may
-also be used to test for validity without constructing an instance.
+Primarily for validation, the `EmailAddress` type is constructed with
+`FromStr::from_str` which will raise any parsing errors. Prior to constructions
+the functions `is_valid`, `is_valid_local_part`, and `is_valid_domain` may also be
+used to test for validity without constructing an instance.
 
-## Status 
+## Status
 
-Currently, it supports all the RFC ASCII and UTF-8 character set rules as well as quoted and unquoted local 
-parts but does not yet support all the productions required for SMTP headers; folding whitespace, comments, etc.
+Currently, it supports all the RFC ASCII and UTF-8 character set rules as well
+as quoted and unquoted local parts but does not yet support all the productions
+required for SMTP headers; folding whitespace, comments, etc.
 
 ## Example
 
@@ -48,25 +50,49 @@ assert_eq!(
    IETF, Oct 2008.
 1. RFC 5322: [_Internet Message Format_](https://tools.ietf.org/html/rfc5322), I
    ETF, Oct 2008.
-1. RFC 5890: [_Internationalized Domain Names for Applications (IDNA): Definitions and Document
-   Framework_](https://tools.ietf.org/html/rfc5890), IETF, Aug 2010.
+1. RFC 5890: [_Internationalized Domain Names for Applications (IDNA): Definitions
+   and Document Framework_](https://tools.ietf.org/html/rfc5890), IETF, Aug 2010.
 1. RFC 6531: [_SMTP Extension for Internationalized Email_](https://tools.ietf.org/html/rfc6531),
    IETF, Feb 2012
 1. RFC 6532: [_Internationalized Email Headers_](https://tools.ietf.org/html/rfc6532),
    IETF, Feb 2012.
-   
+
 ## Changes
 
-**Version 0.2.3**
+### Version 0.2.5
+
+* Feature: Pull Request #15 -- Potential enhancement to add any free-text as
+  display name.
+* Feature: Pull Request #17 -- Check for non-alphanumeric character starting or
+  ending domain parts.
+* Feature: Pull Request #18 -- Error with `SubDomainEmpty` when empty instead of
+  `InvalidCharacter`.
+* Feature: Pull Request #19 -- Allow configuring minimum number of subdomains.
+* Feature: Pull Request #20 -- Add option to disallow domain literals.
+* Feature: Pull Request #22 -- Handle a single qoute in local part of email
+
+Thanks to [ghandic](https://github.com/ghandic), [blaine-arcjet](https://github.com/blaine-arcjet),
+[Thomasdezeeuw](https://github.com/Thomasdezeeuw).
+
+### Version 0.2.4
+
+* Fixed bug [#11](https://github.com/johnstonskj/rust-email_address/issues/11):
+  1. Add manual implementation of `PartialEq` with case insensitive comparison for
+     domain part.
+  2. Add manual implementation of `Hash`, because above.
+* Change signature for `new_unchecked` to be more flexible.
+* Add `as_str` helper method.
+
+### Version 0.2.3
 
 * Added new `EmailAddress::new_unchecked` function ([Sören Meier](https://github.com/soerenmeier)).
 
-**Version 0.2.2**
+### Version 0.2.2
 
 * Removed manual `Send` and `Sync` implementation, and fixed documentation bug
   ([Sören Meier](https://github.com/soerenmeier)).
 
-**Version 0.2.1**
+### Version 0.2.1
 
 * Added `From<EmailAddress>` for `String`.
 * Added `AsRef<str` for `EmailAddress`.
@@ -76,14 +102,14 @@ assert_eq!(
 * Fixed some Clippy warnings.
 * Fixed a bug in encoding the mailto URI scheme.
 
-**Version 0.2.0**
+### Version 0.2.0
 
 * Added UTF-8 support.
 * Added more test cases, fixing defects in parsing.
 * Method `to_uri` now supports URI encoding the address as a part of the URI.
 * Added `is_valid_local_part` and `is_valid_domain` methods.
 
-**Version 0.1.0**
+### Version 0.1.0
 
 * Basic type implementation and structure based on RFC 5322.
 * See TODO.
