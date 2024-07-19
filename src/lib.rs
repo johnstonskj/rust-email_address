@@ -1794,6 +1794,7 @@ mod tests {
 
     #[test]
     // Feature test: GitHub PR: #15
+    // Reference: GitHub issue #14
     fn test_parse_display_empty_name_2() {
         expect_with_options(
             "<simon@example.com>",
@@ -1805,6 +1806,7 @@ mod tests {
 
     #[test]
     // Feature test: GitHub PR: #15
+    // Reference: GitHub issue #14
     fn test_parse_display_name_unsupported() {
         expect_with_options(
             "Simons Email <simon@example.com>",
