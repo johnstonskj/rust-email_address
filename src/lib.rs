@@ -466,8 +466,6 @@ const DISPLAY_SEP: &str = " <";
 const DISPLAY_START: char = '<';
 const DISPLAY_END: char = '>';
 
-const UTF8_START: char = '\u{0080}';
-
 const MAILTO_URI_PREFIX: &str = "mailto:";
 
 // ------------------------------------------------------------------------------------------------
