@@ -59,9 +59,13 @@ assert_eq!(
 
 ## Changes
 
+### Version 0.2.9
+
+* Fixed bug [#21](https://github.com/johnstonskj/rust-email_address/issues/21): Invalid Unicode characters accepted.
+
 ### Version 0.2.8
 
-* Fix: put back implementation of `Eq`.
+* Fixed bug [#29](https://github.com/johnstonskj/rust-email_address/issues/29): Put back implementation of `Eq`.
 
 ### Version 0.2.7
 
