@@ -198,6 +198,15 @@ esmtp-value  =/ UTF8-non-ascii
     ; extend the definition of esmtp-value in RFC 5321, Section 4.1.2
 ```
 
+A "U-label" is an IDNA-valid string of Unicode characters, in Normalization Form C (NFC) and
+including at least one non-ASCII character, expressed in a standard Unicode Encoding Form (such as
+UTF-8). It is also subject to the constraints about permitted characters that are specified in
+Section 4.2 of the Protocol document and the rules in the Sections 2 and 3 of the Tables document,
+the Bidi constraints in that document if it contains any character from scripts that are written
+right to left, and the symmetry constraint described immediately below. Conversions between U-labels
+and A-labels are performed according to the "Punycode" specification [RFC3492], adding or removing
+the ACE prefix as needed.
+
 RFC 6532: §3.1 [UTF-8 Syntax and Normalization](https://tools.ietf.org/html/rfc6532#section-3.1),
 and §3.2 [Syntax Extensions to RFC 5322](https://tools.ietf.org/html/rfc6532#section-3.2) extend
 the syntax above with:
@@ -1083,28 +1092,48 @@ fn is_atext(c: char) -> bool {
         || c == '|'
         || c == '}'
         || c == '~'
-        || is_uchar(c)
+        || is_utf8_non_ascii(c)
 }
 
-#[allow(dead_code)]
-fn is_special(c: char) -> bool {
-    c == '('
-        || c == ')'
-        || c == '<'
-        || c == '>'
-        || c == '['
-        || c == ']'
-        || c == ':'
-        || c == ';'
-        || c == '@'
-        || c == '\\'
-        || c == ','
-        || c == '.'
-        || c == DQUOTE
-}
+//fn is_special(c: char) -> bool {
+//    c == '('
+//        || c == ')'
+//        || c == '<'
+//        || c == '>'
+//        || c == '['
+//        || c == ']'
+//        || c == ':'
+//        || c == ';'
+//        || c == '@'
+//        || c == '\\'
+//        || c == ','
+//        || c == '.'
+//        || c == DQUOTE
+//}
 
-fn is_uchar(c: char) -> bool {
-    c >= UTF8_START
+fn is_utf8_non_ascii(c: char) -> bool {
+    let bytes = (c as u32).to_be_bytes();
+    // UTF8-non-ascii  =   UTF8-2 / UTF8-3 / UTF8-4
+    match (bytes[0], bytes[1], bytes[2], bytes[3]) {
+        // UTF8-2      = %xC2-DF UTF8-tail
+        (0x00, 0x00, 0xC2..=0xDF, 0x80..=0xBF) => true,
+        // UTF8-3      = %xE0 %xA0-BF UTF8-tail /
+        //               %xE1-EC 2( UTF8-tail ) /
+        //               %xED %x80-9F UTF8-tail /
+        //               %xEE-EF 2( UTF8-tail )
+        (0x00, 0xE0, 0xA0..=0xBF, 0x80..=0xBF) => true,
+        (0x00, 0xE1..=0xEC, 0x80..=0xBF, 0x80..=0xBF) => true,
+        (0x00, 0xED, 0x80..=0x9F, 0x80..=0xBF) => true,
+        (0x00, 0xEE..=0xEF, 0x80..=0xBF, 0x80..=0xBF) => true,
+        // UTF8-4      = %xF0 %x90-BF 2( UTF8-tail ) /
+        //               %xF1-F3 3( UTF8-tail ) /
+        //               %xF4 %x80-8F 2( UTF8-tail )
+        (0xF0, 0x90..=0xBF, 0x80..=0xBF, 0x80..=0xBF) => true,
+        (0xF1..=0xF3, 0x80..=0xBF, 0x80..=0xBF, 0x80..=0xBF) => true,
+        (0xF4, 0x80..=0x8F, 0x80..=0xBF, 0x80..=0xBF) => true,
+        // UTF8-tail   = %x80-BF
+        _ => false,
+    }
 }
 
 fn is_atom(s: &str) -> bool {
@@ -1124,7 +1153,10 @@ fn is_wsp(c: char) -> bool {
 }
 
 fn is_qtext_char(c: char) -> bool {
-    c == '\x21' || ('\x23'..='\x5B').contains(&c) || ('\x5D'..='\x7E').contains(&c) || is_uchar(c)
+    c == '\x21'
+        || ('\x23'..='\x5B').contains(&c)
+        || ('\x5D'..='\x7E').contains(&c)
+        || is_utf8_non_ascii(c)
 }
 
 fn is_qcontent(s: &str) -> bool {
@@ -1145,18 +1177,19 @@ fn is_qcontent(s: &str) -> bool {
 }
 
 fn is_dtext_char(c: char) -> bool {
-    ('\x21'..='\x5A').contains(&c) || ('\x5E'..='\x7E').contains(&c)
+    ('\x21'..='\x5A').contains(&c) || ('\x5E'..='\x7E').contains(&c) || is_utf8_non_ascii(c)
 }
 
-#[allow(dead_code)]
-fn is_ctext_char(c: char) -> bool {
-    (c >= '\x21' && c == '\x27') || ('\x2A'..='\x5B').contains(&c) || ('\x5D'..='\x7E').contains(&c)
-}
-
-#[allow(dead_code)]
-fn is_ctext(s: &str) -> bool {
-    s.chars().all(is_ctext_char)
-}
+//fn is_ctext_char(c: char) -> bool {
+//    (c >= '\x21' && c == '\x27')
+//        || ('\x2A'..='\x5B').contains(&c)
+//        || ('\x5D'..='\x7E').contains(&c)
+//        || is_utf8_non_ascii(c)
+//}
+//
+//fn is_ctext(s: &str) -> bool {
+//    s.chars().all(is_ctext_char)
+//}
 
 // ------------------------------------------------------------------------------------------------
 // Unit Tests
@@ -1910,5 +1943,15 @@ mod tests {
 
         assert_eq!(email, EmailAddress::new_unchecked("simon@Example.com"));
         assert_eq!(email, EmailAddress::new_unchecked("simon@example.COM"));
+    }
+
+    #[test]
+    // Regression test: GitHub issue #21
+    fn test_utf8_non_ascii() {
+        assert!(!is_utf8_non_ascii('A'));
+        assert!(!is_utf8_non_ascii('§'));
+        assert!(!is_utf8_non_ascii('�'));
+        assert!(!is_utf8_non_ascii('\u{0F40}'));
+        assert!(is_utf8_non_ascii('\u{C2B0}'));
     }
 }
