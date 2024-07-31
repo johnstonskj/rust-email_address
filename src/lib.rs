@@ -204,7 +204,7 @@ UTF-8). It is also subject to the constraints about permitted characters that ar
 Section 4.2 of the Protocol document and the rules in the Sections 2 and 3 of the Tables document,
 the Bidi constraints in that document if it contains any character from scripts that are written
 right to left, and the symmetry constraint described immediately below. Conversions between U-labels
-and A-labels are performed according to the "Punycode" specification [RFC3492], adding or removing
+and A-labels are performed according to the "Punycode" specification RFC3492, adding or removing
 the ACE prefix as needed.
 
 RFC 6532: §3.1 [UTF-8 Syntax and Normalization](https://tools.ietf.org/html/rfc6532#section-3.1),
