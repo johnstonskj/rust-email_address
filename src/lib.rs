@@ -608,6 +608,8 @@ impl PartialEq for EmailAddress {
     }
 }
 
+impl Eq for EmailAddress {}
+
 impl Hash for EmailAddress {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);

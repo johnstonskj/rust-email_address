@@ -59,6 +59,10 @@ assert_eq!(
 
 ## Changes
 
+### Version 0.2.8
+
+* Fix: put back implementation of `Eq`.
+
 ### Version 0.2.7
 
 * Feature: added builder functions to the `Option` type.
