@@ -17,7 +17,7 @@ headers; folding whitespace, comments, etc.
 
 # Example
 
-The following shoes the basic `is_valid` and `from_str` functions.
+The following shows the basic `is_valid` and `from_str` functions.
 
 ```rust
 use email_address::*;
