@@ -257,7 +257,6 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 */
 
 #![cfg_attr(not(feature = "std"), no_std)]
-
 #![warn(
     unknown_lints,
     // ---------- Stylistic
@@ -303,12 +302,12 @@ extern crate alloc;
 use std as alloc;
 
 use alloc::borrow::ToOwned;
-use alloc::string::String;
 use alloc::format;
-use core::str::FromStr;
+use alloc::string::String;
+use core::fmt::{Display, Formatter};
 use core::hash::Hash;
-use core::fmt::{Formatter, Display};
 use core::prelude::rust_2018::*;
+use core::str::FromStr;
 use core::write;
 
 #[cfg(feature = "serde_support")]
