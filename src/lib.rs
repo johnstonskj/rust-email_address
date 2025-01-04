@@ -256,7 +256,7 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 
 */
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #![warn(
     unknown_lints,
@@ -297,7 +297,10 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
     dyn_drop,
 )]
 
+#[cfg(not(feature = "std"))]
 extern crate alloc;
+#[cfg(feature = "std")]
+use std as alloc;
 
 use alloc::borrow::ToOwned;
 use alloc::string::String;
