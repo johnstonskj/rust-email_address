@@ -49,6 +49,12 @@ jobs:
         command: publish
         args: --package ${{ matrix.package}} --dry-run
 
+    - name: Check publish (no_std)
+      uses: actions-rs/cargo@v1
+      with:
+        command: publish
+        args: --package ${{ matrix.package}} --target x86_64-unknown-none --dry-run
+
       
   check_tests:
     name: Check for test types
