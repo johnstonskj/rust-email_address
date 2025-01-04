@@ -19,7 +19,7 @@ default = ["serde_support"]
 serde_support = ["serde"]
 
 [dependencies]
-serde = { optional = true, version = "1.0" }
+serde = { optional = true, version = "1.0", default-features = false }
 
 [dev-dependencies]
 claims = "0.7.1"

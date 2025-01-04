@@ -256,6 +256,8 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 
 */
 
+#![no_std]
+
 #![warn(
     unknown_lints,
     // ---------- Stylistic
@@ -295,11 +297,19 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
     dyn_drop,
 )]
 
+extern crate alloc;
+
+use alloc::borrow::ToOwned;
+use alloc::string::String;
+use alloc::format;
+use core::str::FromStr;
+use core::hash::Hash;
+use core::fmt::{Formatter, Display};
+use core::prelude::rust_2018::*;
+use core::write;
+
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize, Serializer};
-use std::fmt::{Debug, Display, Formatter};
-use std::hash::Hash;
-use std::str::FromStr;
 
 // ------------------------------------------------------------------------------------------------
 // Public Types
@@ -471,7 +481,7 @@ const MAILTO_URI_PREFIX: &str = "mailto:";
 // ------------------------------------------------------------------------------------------------
 
 impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             Error::InvalidCharacter => write!(f, "Invalid character."),
             Error::LocalPartEmpty => write!(f, "Local part is empty."),
@@ -509,9 +519,9 @@ impl Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl core::error::Error for Error {}
 
-impl<T> From<Error> for std::result::Result<T, Error> {
+impl<T> From<Error> for core::result::Result<T, Error> {
     fn from(err: Error) -> Self {
         Err(err)
     }
@@ -592,7 +602,7 @@ impl Options {
 // ------------------------------------------------------------------------------------------------
 
 impl Display for EmailAddress {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -618,7 +628,7 @@ impl PartialEq for EmailAddress {
 impl Eq for EmailAddress {}
 
 impl Hash for EmailAddress {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
@@ -666,7 +676,7 @@ impl<'de> Deserialize<'de> for EmailAddress {
         impl Visitor<'_> for EmailAddressVisitor {
             type Value = EmailAddress;
 
-            fn expecting(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
+            fn expecting(&self, fmt: &mut Formatter<'_>) -> core::fmt::Result {
                 fmt.write_str("string containing a valid email address")
             }
 
