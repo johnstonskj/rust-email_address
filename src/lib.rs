@@ -845,9 +845,9 @@ impl EmailAddress {
     /// );
     /// ```
     ///
-    pub fn email(&self) -> String {
-        let (local, domain, _) = split_parts(&self.0).unwrap();
-        format!("{}{AT}{}", local, domain)
+    pub fn email(&self) -> &str {
+        let (_, email) = split_display_email(&self.0).unwrap();
+        email
     }
 
     ///
@@ -1854,7 +1854,9 @@ mod tests {
         .unwrap();
 
         assert_eq!(email.display_part(), "Simons Email");
-        assert_eq!(email.email(), "simon@example.com");
+
+        let addr_spec: &str = email.email();
+        assert_eq!(addr_spec, "simon@example.com");
     }
 
     #[test]
@@ -1867,7 +1869,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(email.display_part(), "Simons Email");
-        assert_eq!(email.email(), "simon@example.com");
+
+        let addr_spec: &str = email.email();
+        assert_eq!(addr_spec, "simon@example.com");
+
         assert_eq!(email.local_part(), "simon");
         assert_eq!(email.domain(), "example.com");
     }
