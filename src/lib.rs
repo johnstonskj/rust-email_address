@@ -297,6 +297,8 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize, Serializer};
+use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::str::FromStr;
@@ -607,11 +609,25 @@ impl Display for EmailAddress {
 // follow normal DNS rules and are hence not case sensitive.
 //
 
+impl EmailAddress {
+    // Get a canonical version of this email address which can be compared with others.
+    // This returns a Cow to avoid allocating a replacement String in the hopefully common case of lowercase input domains.
+    fn with_lowercase_domain<'a>(&'a self) -> Cow<'a, str> {
+        let (left, right) = split_at(&self.0).unwrap();
+        if right
+            .chars()
+            .all(|char| !char.is_ascii() || char.is_ascii_lowercase())
+        {
+            Cow::Borrowed(&self.0)
+        } else {
+            Cow::Owned(format!("{}@{}", left, right.to_ascii_lowercase()))
+        }
+    }
+}
+
 impl PartialEq for EmailAddress {
     fn eq(&self, other: &Self) -> bool {
-        let (left, right) = split_at(&self.0).unwrap();
-        let (other_left, other_right) = split_at(&other.0).unwrap();
-        left.eq(other_left) && right.eq_ignore_ascii_case(other_right)
+        self.with_lowercase_domain() == other.with_lowercase_domain()
     }
 }
 
@@ -619,7 +635,30 @@ impl Eq for EmailAddress {}
 
 impl Hash for EmailAddress {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
+        let (left, right) = split_at(&self.0).unwrap();
+        left.hash(state);
+        // Avoid allocating if right is already lowercase ASCII.
+        if right
+            .chars()
+            .all(|char| !char.is_ascii() || char.is_ascii_lowercase())
+        {
+            right.hash(state)
+        } else {
+            right.to_ascii_lowercase().hash(state);
+        }
+    }
+}
+
+impl Ord for EmailAddress {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.with_lowercase_domain()
+            .cmp(&other.with_lowercase_domain())
+    }
+}
+
+impl PartialOrd for EmailAddress {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -1264,6 +1303,11 @@ mod serde_tests {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::BTreeSet,
+        hash::{DefaultHasher, Hasher},
+    };
+
     use super::*;
 
     fn is_valid(address: &str, test_case: Option<&str>) {
@@ -1951,5 +1995,42 @@ mod tests {
         assert!(!is_utf8_non_ascii('�'));
         assert!(!is_utf8_non_ascii('\u{0F40}'));
         assert!(is_utf8_non_ascii('\u{C2B0}'));
+    }
+
+    #[test]
+    fn test_hash_ignores_domain_case() {
+        let all_lower = EmailAddress::new_unchecked("simon@example.com");
+        let all_upper = EmailAddress::new_unchecked("simon@EXAMPLE.COM");
+        let mixed = EmailAddress::new_unchecked("simon@exAmPlE.CoM");
+        let different_left = EmailAddress::new_unchecked("jane@example.com");
+
+        assert_eq!(hash(&all_lower), hash(&all_upper));
+        assert_eq!(hash(&all_lower), hash(&mixed));
+        assert_ne!(hash(&all_lower), hash(&different_left));
+    }
+
+    #[test]
+    fn test_ord() {
+        let all_lower = EmailAddress::new_unchecked("simon@example.com");
+        let all_upper = EmailAddress::new_unchecked("simon@EXAMPLE.COM");
+        let mixed = EmailAddress::new_unchecked("simon@exAmPlE.CoM");
+        let different_left = EmailAddress::new_unchecked("jane@example.com");
+        let different_right = EmailAddress::new_unchecked("jane@other-example.com");
+
+        let mut set = BTreeSet::new();
+        set.insert(all_lower.clone());
+        set.insert(all_upper);
+        set.insert(mixed);
+        set.insert(different_left.clone());
+        set.insert(different_right.clone());
+
+        let sorted: Vec<EmailAddress> = set.into_iter().collect();
+        assert_eq!(vec![different_left, different_right, all_lower,], sorted,)
+    }
+
+    fn hash(email_address: &EmailAddress) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        email_address.hash(&mut hasher);
+        hasher.finish()
     }
 }
