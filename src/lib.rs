@@ -424,6 +424,31 @@ pub struct Options {
     /// ```
     ///
     pub allow_display_text: bool,
+
+    /// Enable this to allow local parts which exceed the RFC's value to be accepted.
+    ///
+    /// ```rust
+    /// use email_address::*;
+    /// let email = "reply+2a907e&3uofr1&&99cd5c22c2ca5b23655799316a8d8eb2dd83c3c487612cb9b9a00bf13f13afe2@mg1.substack.com";
+    ///
+    /// assert_eq!(
+    ///     EmailAddress::parse_with_options(
+    ///         email,
+    ///         Options::default()
+    ///     ),
+    ///     Err(Error::LocalPartTooLong),
+    /// );
+    ///
+    /// assert!(
+    ///     EmailAddress::parse_with_options(
+    ///         email,
+    ///         Options::default().with_long_local_parts()
+    ///     ).is_ok()
+    /// );
+    ///
+    /// ```
+    ///
+    pub allow_long_local_parts: bool,
 }
 
 ///
@@ -525,6 +550,7 @@ impl Default for Options {
             minimum_sub_domains: Default::default(),
             allow_domain_literal: true,
             allow_display_text: true,
+            allow_long_local_parts: false,
         }
     }
 }
@@ -584,6 +610,15 @@ impl Options {
     pub const fn without_display_text(self) -> Self {
         Self {
             allow_display_text: false,
+            ..self
+        }
+    }
+
+    /// Set the value of `allow_large_local_parts` to `true`.
+    #[inline(always)]
+    pub const fn with_long_local_parts(self) -> Self {
+        Self {
+            allow_long_local_parts: true,
             ..self
         }
     }
@@ -967,10 +1002,10 @@ fn split_at(address: &str) -> Result<(&str, &str), Error> {
     }
 }
 
-fn parse_local_part(part: &str, _: Options) -> Result<(), Error> {
+fn parse_local_part(part: &str, options: Options) -> Result<(), Error> {
     if part.is_empty() {
         Error::LocalPartEmpty.into()
-    } else if part.len() > LOCAL_PART_MAX_LENGTH {
+    } else if part.len() > LOCAL_PART_MAX_LENGTH && !options.allow_long_local_parts {
         Error::LocalPartTooLong.into()
     } else if part.starts_with(DQUOTE) && part.ends_with(DQUOTE) {
         // <= to handle `part` = `"` (single quote).
@@ -1951,5 +1986,23 @@ mod tests {
         assert!(!is_utf8_non_ascii('�'));
         assert!(!is_utf8_non_ascii('\u{0F40}'));
         assert!(is_utf8_non_ascii('\u{C2B0}'));
+    }
+
+    #[test]
+    fn test_allow_long_local_parts() {
+        let email = "reply+2a907e&3uofr1&&99cd5c22c2ca5b23655799316a8d8eb2dd83c3c487612cb9b9a00bf13f13afe2@mg1.substack.com";
+
+        assert_eq!(
+            EmailAddress::parse_with_options(email, Options::default()),
+            Err(Error::LocalPartTooLong),
+        );
+
+        let parsed =
+            EmailAddress::parse_with_options(email, Options::default().with_long_local_parts())
+                .unwrap();
+        assert_eq!(
+            parsed.local_part(),
+            "reply+2a907e&3uofr1&&99cd5c22c2ca5b23655799316a8d8eb2dd83c3c487612cb9b9a00bf13f13afe2"
+        )
     }
 }
