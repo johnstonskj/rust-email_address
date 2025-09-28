@@ -35,19 +35,14 @@ jobs:
       uses: actions/checkout@v5
       
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
-        profile: minimal
-        override: true
         
     - uses: Swatinem/rust-cache@v2
       
     - name: Check publish
-      uses: actions-rs/cargo@v1
-      with:
-        command: publish
-        args: --package ${{ matrix.package}} --dry-run
+      run: cargo publish --package ${{ matrix.package}} --dry-run
 
       
   check_tests:
@@ -83,25 +78,17 @@ jobs:
       uses: actions/checkout@v5
       
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: ${{ matrix.rust }}
-        profile: minimal
-        override: true
         
     - uses: Swatinem/rust-cache@v2
       
     - name: Build
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --workspace ${{ matrix.test-features }}
+      run: cargo build --workspace ${{ matrix.test-features }}
       
     - name: Test
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace ${{ matrix.test-features }}
+      run: cargo test --workspace ${{ matrix.test-features }}
  
       
   benchmarks:
@@ -118,19 +105,14 @@ jobs:
       uses: actions/checkout@v5
       
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: ${{ matrix.rust }}
-        profile: minimal
-        override: true
         
     - uses: Swatinem/rust-cache@v2
       
     - name: Run benchmarks with all features
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace --benches --all-features --no-fail-fast
+      run: cargo test --workspace --benches --all-features --no-fail-fast
 
       
   examples:
@@ -144,22 +126,17 @@ jobs:
         rust: ["stable"]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v5
       
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: ${{ matrix.rust }}
-        profile: minimal
-        override: true
         
     - uses: Swatinem/rust-cache@v2
       
     - name: Run examples with all features
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace --examples --all-features --no-fail-fast
+      run: cargo test --workspace --examples --all-features --no-fail-fast
 
         
   coverage:   
@@ -175,19 +152,18 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
-          override: true
+      
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
 
       - name: Run cargo-tarpaulin
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: 0.22.0
-          args: --all-features -- --test-threads 1
+        run: cargo tarpaulin --all-features -- --test-threads 1
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1.0.2
+        uses: codecov/codecov-action@v5
         with:
           token: ${{secrets.CODECOV_TOKEN}}
 
@@ -207,21 +183,16 @@ jobs:
       uses: actions/checkout@v5
       
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
-        profile: minimal
-        override: true
         
     - uses: Swatinem/rust-cache@v2
       
     - name: Generate documentation
-      uses: actions-rs/cargo@v1
       env:
         RUSTDOCFLAGS: -D warnings
-      with:
-        command: doc
-        args: --workspace --all-features --no-deps
+      run: cargo doc --workspace --all-features --no-deps
 
       
   rustfmt:
@@ -232,20 +203,15 @@ jobs:
       uses: actions/checkout@v5
       
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
-        profile: minimal
-        override: true
         components: rustfmt
               
     - uses: Swatinem/rust-cache@v2
 
     - name: Check formatting
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --all -- --check
+      run: cargo fmt --all -- --check
 
       
   clippy:
@@ -258,16 +224,12 @@ jobs:
       uses: actions/checkout@v5
       
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
-        profile: minimal
-        override: true
         components: clippy
               
     - uses: Swatinem/rust-cache@v2
 
-    - uses: actions-rs/clippy-check@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        args: --workspace --no-deps --all-features --all-targets -- -D warnings
+    - name: Run Clippy
+      run: cargo clippy --workspace --no-deps --all-features --all-targets -- -D warnings
