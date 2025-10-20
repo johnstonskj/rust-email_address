@@ -21,6 +21,12 @@ Currently, it supports all the RFC ASCII and UTF-8 character set rules as well
 as quoted and unquoted local parts but does not yet support all the productions
 required for SMTP headers; folding whitespace, comments, etc.
 
+## Additional Features
+
+* `serde`: adds `Serialize` and `Deserialize` implementations for `EmailAddress`.
+* `zeroize`: adds `Zeroize` implementation for `EmailAddress`, and ensures that
+  the `EmailAddress` is zeroized when dropped.
+
 ## Example
 
 ```rust

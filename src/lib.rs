@@ -300,6 +300,10 @@ use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::str::FromStr;
+#[cfg(feature = "zeroize")]
+use zeroize::Zeroize;
+#[cfg(feature = "zeroize")]
+use zeroize_derive::{Zeroize, ZeroizeOnDrop};
 
 // ------------------------------------------------------------------------------------------------
 // Public Types
@@ -433,6 +437,7 @@ pub struct Options {
 /// independently.
 ///
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct EmailAddress(String);
 
 // ------------------------------------------------------------------------------------------------
@@ -632,8 +637,14 @@ impl FromStr for EmailAddress {
 }
 
 impl From<EmailAddress> for String {
+    #[cfg(not(feature = "zeroize"))]
     fn from(email: EmailAddress) -> Self {
         email.0
+    }
+
+    #[cfg(feature = "zeroize")]
+    fn from(email: EmailAddress) -> Self {
+        email.0.clone()
     }
 }
 
@@ -676,6 +687,8 @@ impl<'de> Deserialize<'de> for EmailAddress {
             {
                 EmailAddress::from_str(s).map_err(|err| {
                     let exp = format!("{}", err);
+                    #[cfg(feature = "zeroize")]
+                    let s = "[secret email address]";
                     Error::invalid_value(Unexpected::Str(s), &exp.as_ref())
                 })
             }
@@ -735,8 +748,19 @@ impl EmailAddress {
     /// let is_valid = EmailAddress::from_str("johnstonskj@gmail.com").is_ok();
     /// ```
     ///
+    #[cfg(not(feature = "zeroize"))]
     pub fn is_valid(address: &str) -> bool {
         Self::from_str(address).is_ok()
+    }
+    #[cfg(feature = "zeroize")]
+    pub fn is_valid(address: &str) -> bool {
+        match Self::from_str(address) {
+            Ok(mut email) => {
+                email.zeroize();
+                true
+            }
+            _ => false,
+        }
     }
 
     ///
@@ -769,9 +793,17 @@ impl EmailAddress {
     /// );
     /// ```
     ///
+    #[cfg(not(feature = "zeroize"))]
     pub fn to_uri(&self) -> String {
         let encoded = encode(&self.0);
         format!("{}{}", MAILTO_URI_PREFIX, encoded)
+    }
+    #[cfg(feature = "zeroize")]
+    pub fn to_uri(&self) -> String {
+        let mut encoded = encode(&self.0);
+        let output = format!("{}{}", MAILTO_URI_PREFIX, encoded);
+        encoded.zeroize();
+        output
     }
 
     ///
@@ -1223,6 +1255,7 @@ mod serde_tests {
     }
 
     #[test]
+    #[cfg(not(feature = "zeroize"))]
     fn test_deserialize_invalid_value() {
         let mut deserializer =
             Deserializer::builder([Token::Str("Abc.example.com".to_owned())]).build();
@@ -1259,6 +1292,45 @@ mod serde_tests {
             Deserializer::builder(assert_ok!(email.serialize(&serializer))).build();
 
         assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
+    }
+}
+
+#[cfg(feature = "zeroize")]
+#[cfg(test)]
+mod zeroize_tests {
+    use super::*;
+    use claims::{assert_err_eq, assert_ok};
+    #[cfg(feature = "serde_support")]
+    use serde::de::{Error as _, Unexpected};
+    use serde_assert::{Deserializer, Token};
+
+    #[test]
+    fn test_zeroize() {
+        let mut email = assert_ok!(EmailAddress::from_str("secret@example.com"));
+        assert_eq!(email.as_str(), "secret@example.com");
+
+        email.zeroize();
+        assert_eq!(email.as_str(), "");
+    }
+
+    #[test]
+    fn test_has_drop() {
+        assert!(std::mem::needs_drop::<EmailAddress>());
+    }
+
+    #[test]
+    #[cfg(feature = "serde_support")]
+    fn test_deserialize_invalid_secret_value() {
+        let mut deserializer =
+            Deserializer::builder([Token::Str("secret.example.com".to_owned())]).build();
+
+        assert_err_eq!(
+            EmailAddress::deserialize(&mut deserializer),
+            serde_assert::de::Error::invalid_value(
+                Unexpected::Str("[secret email address]"),
+                &"Missing separator character '@'."
+            )
+        );
     }
 }
 
