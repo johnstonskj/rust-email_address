@@ -1090,7 +1090,7 @@ fn is_atext(c: char) -> bool {
         || c == '|'
         || c == '}'
         || c == '~'
-        || is_utf8_non_ascii(c)
+        || !c.is_ascii()
 }
 
 //fn is_special(c: char) -> bool {
@@ -1109,31 +1109,6 @@ fn is_atext(c: char) -> bool {
 //        || c == DQUOTE
 //}
 
-fn is_utf8_non_ascii(c: char) -> bool {
-    let bytes = (c as u32).to_be_bytes();
-    // UTF8-non-ascii  =   UTF8-2 / UTF8-3 / UTF8-4
-    match (bytes[0], bytes[1], bytes[2], bytes[3]) {
-        // UTF8-2      = %xC2-DF UTF8-tail
-        (0x00, 0x00, 0xC2..=0xDF, 0x80..=0xBF) => true,
-        // UTF8-3      = %xE0 %xA0-BF UTF8-tail /
-        //               %xE1-EC 2( UTF8-tail ) /
-        //               %xED %x80-9F UTF8-tail /
-        //               %xEE-EF 2( UTF8-tail )
-        (0x00, 0xE0, 0xA0..=0xBF, 0x80..=0xBF) => true,
-        (0x00, 0xE1..=0xEC, 0x80..=0xBF, 0x80..=0xBF) => true,
-        (0x00, 0xED, 0x80..=0x9F, 0x80..=0xBF) => true,
-        (0x00, 0xEE..=0xEF, 0x80..=0xBF, 0x80..=0xBF) => true,
-        // UTF8-4      = %xF0 %x90-BF 2( UTF8-tail ) /
-        //               %xF1-F3 3( UTF8-tail ) /
-        //               %xF4 %x80-8F 2( UTF8-tail )
-        (0xF0, 0x90..=0xBF, 0x80..=0xBF, 0x80..=0xBF) => true,
-        (0xF1..=0xF3, 0x80..=0xBF, 0x80..=0xBF, 0x80..=0xBF) => true,
-        (0xF4, 0x80..=0x8F, 0x80..=0xBF, 0x80..=0xBF) => true,
-        // UTF8-tail   = %x80-BF
-        _ => false,
-    }
-}
-
 fn is_atom(s: &str) -> bool {
     !s.is_empty() && s.chars().all(is_atext)
 }
@@ -1151,10 +1126,7 @@ fn is_wsp(c: char) -> bool {
 }
 
 fn is_qtext_char(c: char) -> bool {
-    c == '\x21'
-        || ('\x23'..='\x5B').contains(&c)
-        || ('\x5D'..='\x7E').contains(&c)
-        || is_utf8_non_ascii(c)
+    c == '\x21' || ('\x23'..='\x5B').contains(&c) || ('\x5D'..='\x7E').contains(&c) || !c.is_ascii()
 }
 
 fn is_qcontent(s: &str) -> bool {
@@ -1175,14 +1147,14 @@ fn is_qcontent(s: &str) -> bool {
 }
 
 fn is_dtext_char(c: char) -> bool {
-    ('\x21'..='\x5A').contains(&c) || ('\x5E'..='\x7E').contains(&c) || is_utf8_non_ascii(c)
+    ('\x21'..='\x5A').contains(&c) || ('\x5E'..='\x7E').contains(&c) || !c.is_ascii()
 }
 
 //fn is_ctext_char(c: char) -> bool {
 //    (c >= '\x21' && c == '\x27')
 //        || ('\x2A'..='\x5B').contains(&c)
 //        || ('\x5D'..='\x7E').contains(&c)
-//        || is_utf8_non_ascii(c)
+//        || !c.is_ascii()
 //}
 //
 //fn is_ctext(s: &str) -> bool {
@@ -1941,15 +1913,5 @@ mod tests {
 
         assert_eq!(email, EmailAddress::new_unchecked("simon@Example.com"));
         assert_eq!(email, EmailAddress::new_unchecked("simon@example.COM"));
-    }
-
-    #[test]
-    // Regression test: GitHub issue #21
-    fn test_utf8_non_ascii() {
-        assert!(!is_utf8_non_ascii('A'));
-        assert!(!is_utf8_non_ascii('§'));
-        assert!(!is_utf8_non_ascii('�'));
-        assert!(!is_utf8_non_ascii('\u{0F40}'));
-        assert!(is_utf8_non_ascii('\u{C2B0}'));
     }
 }
