@@ -17,10 +17,13 @@ targets = ["x86_64-unknown-linux-gnu"]
 [features]
 default = ["serde_support"]
 serde_support = ["serde"]
+sqlx_postgres = ["sqlx", "sqlx/postgres"]
 
 [dependencies]
 serde = { optional = true, version = "1.0" }
+sqlx = { optional = true, version = "0.8" }
 
 [dev-dependencies]
 claims = "0.8.0"
 serde_assert = "0.8.0"
+sqlx-core = "0.8"
