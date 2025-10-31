@@ -17,9 +17,12 @@ targets = ["x86_64-unknown-linux-gnu"]
 [features]
 default = ["serde_support"]
 serde_support = ["serde"]
+zeroize = ["dep:zeroize", "dep:zeroize_derive"]
 
 [dependencies]
 serde = { optional = true, version = "1.0" }
+zeroize = { optional = true, version = "1" }
+zeroize_derive = { optional = true, version = "1" }
 
 [dev-dependencies]
 claims = "0.8.0"
