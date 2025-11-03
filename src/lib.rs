@@ -433,6 +433,7 @@ pub struct Options {
 /// independently.
 ///
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema), schema(format = Email, description = ""))]
 pub struct EmailAddress(String);
 
 // ------------------------------------------------------------------------------------------------
@@ -1237,6 +1238,8 @@ mod serde_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "utoipa")]
+    use utoipa::OpenApi;
 
     fn is_valid(address: &str, test_case: Option<&str>) {
         if let Some(test_case) = test_case {
@@ -1913,5 +1916,22 @@ mod tests {
 
         assert_eq!(email, EmailAddress::new_unchecked("simon@Example.com"));
         assert_eq!(email, EmailAddress::new_unchecked("simon@example.COM"));
+    }
+
+    #[cfg(feature = "utoipa")]
+    #[test]
+    // Feature test: GitHub PR: #47
+    fn test_openapi_correct_type() {
+        #[derive(utoipa::OpenApi)]
+        #[openapi(
+            components(schemas(EmailAddress)),
+            info(title = "", description = "", license(), version = "", contact())
+        )]
+        struct ApiDoc;
+
+        assert_eq!(
+            ApiDoc::openapi().to_json().unwrap(),
+            r#"{"openapi":"3.1.0","info":{"title":"","description":"","contact":{},"license":{"name":""},"version":""},"paths":{},"components":{"schemas":{"EmailAddress":{"type":"string","format":"email","description":""}}}}"#
+        );
     }
 }
