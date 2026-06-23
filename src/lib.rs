@@ -944,9 +944,11 @@ fn split_parts(address: &str) -> Result<(&str, &str, &str), Error> {
 }
 
 fn split_display_email(text: &str) -> Result<(&str, &str), Error> {
-    match text.rsplit_once(DISPLAY_SEP) {
+    match find_display_separator(text) {
         None => Ok(("", text)),
-        Some((left, right)) => {
+        Some(index) => {
+            let left = &text[..index];
+            let right = &text[index + DISPLAY_SEP.len()..];
             let right = right.trim();
             if !right.ends_with(DISPLAY_END) {
                 Err(Error::MissingEndBracket)
@@ -958,6 +960,28 @@ fn split_display_email(text: &str) -> Result<(&str, &str), Error> {
             }
         }
     }
+}
+
+fn find_display_separator(text: &str) -> Option<usize> {
+    let mut in_quote = false;
+    let mut escaped = false;
+    let mut separator = None;
+
+    for (index, c) in text.char_indices() {
+        if !in_quote && text[index..].starts_with(DISPLAY_SEP) {
+            separator = Some(index);
+        }
+
+        if escaped {
+            escaped = false;
+        } else if in_quote && c == ESC {
+            escaped = true;
+        } else if c == DQUOTE {
+            in_quote = !in_quote;
+        }
+    }
+
+    separator
 }
 
 fn split_at(address: &str) -> Result<(&str, &str), Error> {
@@ -1372,6 +1396,15 @@ mod tests {
     #[test]
     fn test_good_examples_from_wikipedia_20() {
         is_valid("\"Joe.\\\\Blow\"@example.com", None);
+    }
+
+    #[test]
+    fn test_quoted_local_part_with_display_like_text() {
+        let email = EmailAddress::from_str("\"User <user@example.com>\"@example.com").unwrap();
+
+        assert_eq!(email.display_part(), "");
+        assert_eq!(email.local_part(), "\"User <user@example.com>\"");
+        assert_eq!(email.domain(), "example.com");
     }
 
     #[test]
