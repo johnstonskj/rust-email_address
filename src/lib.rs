@@ -297,6 +297,10 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize, Serializer};
+#[cfg(feature = "sqlx_postgres")]
+use sqlx::postgres::{PgHasArrayType, PgTypeInfo};
+#[cfg(feature = "sqlx")]
+use sqlx::{encode::IsNull, error::BoxDynError, Database, Decode, Encode, Type};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::str::FromStr;
@@ -682,6 +686,61 @@ impl<'de> Deserialize<'de> for EmailAddress {
         }
 
         deserializer.deserialize_str(EmailAddressVisitor)
+    }
+}
+
+#[cfg(feature = "sqlx")]
+impl<DB: Database> Type<DB> for EmailAddress
+where
+    String: Type<DB>,
+{
+    fn type_info() -> DB::TypeInfo {
+        <String as Type<DB>>::type_info()
+    }
+
+    fn compatible(ty: &DB::TypeInfo) -> bool {
+        <String as Type<DB>>::compatible(ty)
+    }
+}
+
+#[cfg(feature = "sqlx_postgres")]
+impl PgHasArrayType for EmailAddress
+where
+    String: PgHasArrayType,
+{
+    fn array_type_info() -> PgTypeInfo {
+        <String as PgHasArrayType>::array_type_info()
+    }
+}
+
+#[cfg(feature = "sqlx")]
+impl<'a, DB: Database> Encode<'a, DB> for EmailAddress
+where
+    String: Encode<'a, DB>,
+{
+    fn encode_by_ref(
+        &self,
+        buf: &mut <DB as Database>::ArgumentBuffer<'a>,
+    ) -> Result<IsNull, BoxDynError> {
+        <String as Encode<'a, DB>>::encode_by_ref(&self.0, buf)
+    }
+
+    fn produces(&self) -> Option<DB::TypeInfo> {
+        <String as Encode<'a, DB>>::produces(&self.0)
+    }
+
+    fn size_hint(&self) -> usize {
+        <String as Encode<'a, DB>>::size_hint(&self.0)
+    }
+}
+
+#[cfg(feature = "sqlx")]
+impl<'a, DB: Database> Decode<'a, DB> for EmailAddress
+where
+    String: Decode<'a, DB>,
+{
+    fn decode(value: <DB as Database>::ValueRef<'a>) -> Result<Self, BoxDynError> {
+        Ok(Self::from_str(&<String as Decode<'a, DB>>::decode(value)?)?)
     }
 }
 
@@ -1164,6 +1223,63 @@ fn is_dtext_char(c: char) -> bool {
 // ------------------------------------------------------------------------------------------------
 // Unit Tests
 // ------------------------------------------------------------------------------------------------
+
+#[cfg(feature = "sqlx")]
+#[cfg(test)]
+mod sqlx_tests {
+    use super::*;
+    use claims::{assert_err, assert_matches, assert_ok, assert_ok_eq};
+    use sqlx::{
+        any::{AnyArguments, AnyValue},
+        Any, Decode, Encode, Value,
+    };
+    use sqlx_core::any::AnyValueKind;
+    use std::borrow::Cow;
+
+    #[test]
+    fn test_encode() {
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+        let mut buf = AnyArguments::default().values;
+        let _ = assert_ok!(<EmailAddress as Encode<'_, Any>>::encode(email, &mut buf));
+
+        assert_eq!(buf.0.len(), 1);
+        assert_matches!(&buf.0[0], AnyValueKind::Text(text) if text == "simple@example.com");
+    }
+
+    #[test]
+    fn test_decode() {
+        let value = AnyValue {
+            kind: AnyValueKind::Text(Cow::from("simple@example.com")),
+        };
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+        assert_ok_eq!(
+            <EmailAddress as Decode<'_, Any>>::decode(value.as_ref()),
+            email
+        );
+    }
+
+    #[test]
+    fn test_decode_invalid_value() {
+        let value = AnyValue {
+            kind: AnyValueKind::Text(Cow::from("Abc.example.com")),
+        };
+        let boxed_error = assert_err!(<EmailAddress as Decode<'_, Any>>::decode(value.as_ref()));
+        let error = assert_ok!(boxed_error.downcast::<Error>());
+
+        assert_matches!(*error, Error::MissingSeparator);
+    }
+
+    #[test]
+    fn test_decode_invalid_type() {
+        let value = AnyValue {
+            kind: AnyValueKind::Integer(42),
+        };
+        let boxed_error = assert_err!(<EmailAddress as Decode<'_, Any>>::decode(value.as_ref()));
+
+        assert_eq!(boxed_error.to_string(), "expected TEXT, got Integer(42)");
+    }
+}
 
 #[cfg(feature = "serde_support")]
 #[cfg(test)]
