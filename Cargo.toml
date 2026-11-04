@@ -26,4 +26,4 @@ sqlx = { optional = true, version = "0.8" }
 [dev-dependencies]
 claims = "0.8.0"
 serde_assert = "0.8.0"
-sqlx-core = "0.8"
+sqlx-core = "0.9"
