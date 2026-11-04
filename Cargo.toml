@@ -21,7 +21,7 @@ sqlx_postgres = ["sqlx", "sqlx/postgres"]
 
 [dependencies]
 serde = { optional = true, version = "1.0" }
-sqlx = { optional = true, version = "0.8" }
+sqlx = { optional = true, version = "0.9" }
 
 [dev-dependencies]
 claims = "0.8.0"
