@@ -15,12 +15,14 @@ publish = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [features]
-default = ["serde_support"]
+default = ["std", "serde_support"]
+std = ["serde?/std"]
 serde_support = ["serde"]
+sqlx = ["std", "dep:sqlx"]
 sqlx_postgres = ["sqlx", "sqlx/postgres"]
 
 [dependencies]
-serde = { optional = true, version = "1.0" }
+serde = { optional = true, version = "1.0", default-features = false, features = ["alloc"] }
 sqlx = { optional = true, version = "0.8" }
 
 [dev-dependencies]
