@@ -601,7 +601,7 @@ fn test_parse_trimmed() {
 }
 
 #[test]
-// Feature test: GitHub PR: #15
+// [GitHub PR #15] Feature test
 fn test_parse_display_name() {
     let email =
         EmailAddress::parse_with_options("Simons Email <simon@example.com>", Options::default())
@@ -617,7 +617,7 @@ fn test_parse_display_name() {
 }
 
 #[test]
-// Feature test: GitHub PR: #15
+// [GitHub PR #15] Feature test
 fn test_parse_display_empty_name() {
     expect(
         "<simon@example.com>",
@@ -627,8 +627,7 @@ fn test_parse_display_empty_name() {
 }
 
 #[test]
-// Feature test: GitHub PR: #15
-// Reference: GitHub issue #14
+// [ GitHub PR #15, Reference, Issue #14] Feature test
 fn test_parse_display_empty_name_2() {
     expect_with_options(
         "<simon@example.com>",
@@ -639,8 +638,7 @@ fn test_parse_display_empty_name_2() {
 }
 
 #[test]
-// Feature test: GitHub PR: #15
-// Reference: GitHub issue #14
+// [GitHub PR #15, Issue #14] Feature test
 fn test_parse_display_name_unsupported() {
     expect_with_options(
         "Simons Email <simon@example.com>",
@@ -651,7 +649,7 @@ fn test_parse_display_name_unsupported() {
 }
 
 #[test]
-// Regression test: GitHub issue #23
+// [GitHub Issue #23] Regression test
 fn test_missing_tld() {
     EmailAddress::parse_with_options("simon@localhost", Options::default()).unwrap();
     EmailAddress::parse_with_options(
@@ -669,7 +667,7 @@ fn test_missing_tld() {
 }
 
 #[test]
-// Regression test: GitHub issue #11
+// [GitHub Issue #11] Regression test
 fn test_eq_name_case_sensitive_local() {
     let email = EmailAddress::new_unchecked("simon@example.com");
 
@@ -679,7 +677,7 @@ fn test_eq_name_case_sensitive_local() {
 }
 
 #[test]
-// Regression test: GitHub issue #11
+// [GitHub Issue #11] Regression test
 fn test_eq_name_case_insensitive_domain() {
     let email = EmailAddress::new_unchecked("simon@example.com");
 
@@ -687,7 +685,7 @@ fn test_eq_name_case_insensitive_domain() {
     assert_eq!(email, EmailAddress::new_unchecked("simon@example.COM"));
 }
 
-// from PR feat: Allow long local parts - #44⁠
+// [GitHub PR #44] feat: Allow long local parts
 #[test]
 fn test_allow_long_local_parts() {
     let email = "reply+2a907e&3uofr1&&99cd5c22c2ca5b23655799316a8d8eb2dd83c3c487612cb9b9a00bf13f13afe2@mg1.substack.com";
@@ -704,4 +702,15 @@ fn test_allow_long_local_parts() {
         parsed.local_part(),
         "reply+2a907e&3uofr1&&99cd5c22c2ca5b23655799316a8d8eb2dd83c3c487612cb9b9a00bf13f13afe2"
     )
+}
+
+
+// [GitHub PR #53] Fix: handle display-like text in quoted local parts
+#[test]
+fn test_quoted_local_part_with_display_like_text() {
+    let email = EmailAddress::from_str("\"User <user@example.com>\"@example.com").unwrap();
+
+    assert_eq!(email.display_part(), "");
+    assert_eq!(email.local_part(), "\"User <user@example.com>\"");
+    assert_eq!(email.domain(), "example.com");
 }

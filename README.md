@@ -1,6 +1,7 @@
 # Crate email_address
 
-A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newtype. 
+A Rust crate providing an implementation of an RFC-compliant `EmailAddress`
+newtype.
 
 ![MIT License](https://img.shields.io/badge/license-mit-118811.svg)
 ![Minimum Rust Version](https://img.shields.io/badge/Min%20Rust-1.40-green.svg)
@@ -12,8 +13,8 @@ A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newt
 
 Primarily for validation, the `EmailAddress` type is constructed with
 `FromStr::from_str` which will raise any parsing errors. Prior to constructions
-the functions `is_valid`, `is_valid_local_part`, and `is_valid_domain` may also be
-used to test for validity without constructing an instance.
+the functions `is_valid`, `is_valid_local_part`, and `is_valid_domain` may also
+be used to test for validity without constructing an instance.
 
 ## Status
 
@@ -57,15 +58,36 @@ assert_eq!(
 1. RFC 6532: [_Internationalized Email Headers_](https://tools.ietf.org/html/rfc6532),
    IETF, Feb 2012.
 
+## Features
+
+* **std** (_enabled by default_) — enables usage of the standard library,
+  generally unnecessary.
+* **serde_support** (_enabled by default_) — enables serialization and
+  deserialization support
+  via the [serde](https://crates.io/crates/serde) crate.
+* **sqlx_support** — enables support for the [sqlx](https://crates.io/crates/sqlx)
+  crate. For legacy reasons this feature is also named `sqlx`.
+* **sqlx_postgres** — enables support for the PostgreSQL backend of the
+  [sqlx](https://crates.io/crates/sqlx) crate.
+* **utoipa_support** — enables support for the
+  [utoipa](https://crates.io/crates/utoipa) crate, thereby allowing type-safe
+  generation of OpenAPI documentation for the `EmailAddress` type.
+* **zeroize_support** — enables support for the
+  [zeroize](https://crates.io/crates/zeroize) crate, which allows securely
+  zeroing sensitive data from memory, for example when an email address is
+  dropped.
+
 ## Changes
 
 ### Version 0.2.9
 
-* Fixed bug [#21](https://github.com/johnstonskj/rust-email_address/issues/21): Invalid Unicode characters accepted.
+* Fixed bug [#21](https://github.com/johnstonskj/rust-email_address/issues/21):
+  Invalid Unicode characters accepted.
 
 ### Version 0.2.8
 
-* Fixed bug [#29](https://github.com/johnstonskj/rust-email_address/issues/29): Put back implementation of `Eq`.
+* Fixed bug [#29](https://github.com/johnstonskj/rust-email_address/issues/29):
+  Put back implementation of `Eq`.
 
 ### Version 0.2.7
 
@@ -88,14 +110,15 @@ assert_eq!(
 * Feature: Pull Request #20 -- Add option to disallow domain literals.
 * Feature: Pull Request #22 -- Handle a single qoute in local part of email
 
-Thanks to [ghandic](https://github.com/ghandic), [blaine-arcjet](https://github.com/blaine-arcjet),
+Thanks to [ghandic](https://github.com/ghandic),
+[blaine-arcjet](https://github.com/blaine-arcjet),
 [Thomasdezeeuw](https://github.com/Thomasdezeeuw).
 
 ### Version 0.2.4
 
 * Fixed bug [#11](https://github.com/johnstonskj/rust-email_address/issues/11):
-  1. Add manual implementation of `PartialEq` with case insensitive comparison for
-     domain part.
+  1. Add manual implementation of `PartialEq` with case insensitive comparison
+     for the domain part.
   2. Add manual implementation of `Hash`, because above.
 * Change signature for `new_unchecked` to be more flexible.
 * Add `as_str` helper method.
