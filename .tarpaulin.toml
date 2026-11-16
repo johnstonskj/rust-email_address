@@ -1,0 +1,18 @@
+# Default features, in release mode
+[default_release]
+release = true
+
+# All features, in debug mode
+[all_features]
+all-features = true
+
+# No std, in debug mode
+[no_std]
+no-default-features = true
+features = "alloc"
+
+# Serde feature, in debug mode
+[default_serde]
+features = "serde_support"
+
+# SQLX feature, in debug mode -- TBD

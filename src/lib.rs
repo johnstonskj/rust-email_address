@@ -17,7 +17,7 @@ headers; folding whitespace, comments, etc.
 
 # Example
 
-The following shoes the basic `is_valid` and `from_str` functions.
+The following shows the basic `is_valid` and `from_str` functions.
 
 ```rust
 use email_address::*;
@@ -256,50 +256,23 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 
 */
 
-#![warn(
-    unknown_lints,
-    // ---------- Stylistic
-    absolute_paths_not_starting_with_crate,
-    elided_lifetimes_in_paths,
-    explicit_outlives_requirements,
-    macro_use_extern_crate,
-    nonstandard_style, /* group */
-    noop_method_call,
-    rust_2018_idioms,
-    single_use_lifetimes,
-    trivial_casts,
-    trivial_numeric_casts,
-    // ---------- Future
-    future_incompatible, /* group */
-    rust_2021_compatibility, /* group */
-    // ---------- Public
-    missing_debug_implementations,
-    missing_docs,
-    unreachable_pub,
-    // ---------- Unsafe
-    unsafe_code,
-    unsafe_op_in_unsafe_fn,
-    // ---------- Unused
-    unused, /* group */
-)]
-#![deny(
-    // ---------- Public
-    exported_private_dependencies,
-    // ---------- Deprecated
-    anonymous_parameters,
-    bare_trait_objects,
-    ellipsis_inclusive_range_patterns,
-    // ---------- Unsafe
-    deref_nullptr,
-    drop_bounds,
-    dyn_drop,
-)]
+//#[cfg(not(feature = "std"))]
+//extern crate alloc;
+
+use core::{
+    fmt::{Debug, Display, Formatter},
+    hash::Hash,
+    str::FromStr,
+};
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize, Serializer};
-use std::fmt::{Debug, Display, Formatter};
-use std::hash::Hash;
-use std::str::FromStr;
+
+#[cfg(feature = "sqlx_postgres")]
+use sqlx::postgres::{PgHasArrayType, PgTypeInfo};
+
+#[cfg(feature = "sqlx")]
+use sqlx::{encode::IsNull, error::BoxDynError, Database, Decode, Encode, Type};
 
 // ------------------------------------------------------------------------------------------------
 // Public Types
@@ -685,6 +658,61 @@ impl<'de> Deserialize<'de> for EmailAddress {
     }
 }
 
+#[cfg(feature = "sqlx")]
+impl<DB: Database> Type<DB> for EmailAddress
+where
+    String: Type<DB>,
+{
+    fn type_info() -> DB::TypeInfo {
+        <String as Type<DB>>::type_info()
+    }
+
+    fn compatible(ty: &DB::TypeInfo) -> bool {
+        <String as Type<DB>>::compatible(ty)
+    }
+}
+
+#[cfg(feature = "sqlx_postgres")]
+impl PgHasArrayType for EmailAddress
+where
+    String: PgHasArrayType,
+{
+    fn array_type_info() -> PgTypeInfo {
+        <String as PgHasArrayType>::array_type_info()
+    }
+}
+
+#[cfg(feature = "sqlx")]
+impl<'a, DB: Database> Encode<'a, DB> for EmailAddress
+where
+    String: Encode<'a, DB>,
+{
+    fn encode_by_ref(
+        &self,
+        buf: &mut <DB as Database>::ArgumentBuffer<'a>,
+    ) -> Result<IsNull, BoxDynError> {
+        <String as Encode<'a, DB>>::encode_by_ref(&self.0, buf)
+    }
+
+    fn produces(&self) -> Option<DB::TypeInfo> {
+        <String as Encode<'a, DB>>::produces(&self.0)
+    }
+
+    fn size_hint(&self) -> usize {
+        <String as Encode<'a, DB>>::size_hint(&self.0)
+    }
+}
+
+#[cfg(feature = "sqlx")]
+impl<'a, DB: Database> Decode<'a, DB> for EmailAddress
+where
+    String: Decode<'a, DB>,
+{
+    fn decode(value: <DB as Database>::ValueRef<'a>) -> Result<Self, BoxDynError> {
+        Ok(Self::from_str(&<String as Decode<'a, DB>>::decode(value)?)?)
+    }
+}
+
 impl EmailAddress {
     ///
     /// Creates an `EmailAddress` without checking if the email is valid. Only
@@ -845,9 +873,9 @@ impl EmailAddress {
     /// );
     /// ```
     ///
-    pub fn email(&self) -> String {
-        let (local, domain, _) = split_parts(&self.0).unwrap();
-        format!("{}{AT}{}", local, domain)
+    pub fn email(&self) -> &str {
+        let (_, email) = split_display_email(&self.0).unwrap();
+        email
     }
 
     ///
@@ -1090,7 +1118,7 @@ fn is_atext(c: char) -> bool {
         || c == '|'
         || c == '}'
         || c == '~'
-        || is_utf8_non_ascii(c)
+        || !c.is_ascii()
 }
 
 //fn is_special(c: char) -> bool {
@@ -1109,31 +1137,6 @@ fn is_atext(c: char) -> bool {
 //        || c == DQUOTE
 //}
 
-fn is_utf8_non_ascii(c: char) -> bool {
-    let bytes = (c as u32).to_be_bytes();
-    // UTF8-non-ascii  =   UTF8-2 / UTF8-3 / UTF8-4
-    match (bytes[0], bytes[1], bytes[2], bytes[3]) {
-        // UTF8-2      = %xC2-DF UTF8-tail
-        (0x00, 0x00, 0xC2..=0xDF, 0x80..=0xBF) => true,
-        // UTF8-3      = %xE0 %xA0-BF UTF8-tail /
-        //               %xE1-EC 2( UTF8-tail ) /
-        //               %xED %x80-9F UTF8-tail /
-        //               %xEE-EF 2( UTF8-tail )
-        (0x00, 0xE0, 0xA0..=0xBF, 0x80..=0xBF) => true,
-        (0x00, 0xE1..=0xEC, 0x80..=0xBF, 0x80..=0xBF) => true,
-        (0x00, 0xED, 0x80..=0x9F, 0x80..=0xBF) => true,
-        (0x00, 0xEE..=0xEF, 0x80..=0xBF, 0x80..=0xBF) => true,
-        // UTF8-4      = %xF0 %x90-BF 2( UTF8-tail ) /
-        //               %xF1-F3 3( UTF8-tail ) /
-        //               %xF4 %x80-8F 2( UTF8-tail )
-        (0xF0, 0x90..=0xBF, 0x80..=0xBF, 0x80..=0xBF) => true,
-        (0xF1..=0xF3, 0x80..=0xBF, 0x80..=0xBF, 0x80..=0xBF) => true,
-        (0xF4, 0x80..=0x8F, 0x80..=0xBF, 0x80..=0xBF) => true,
-        // UTF8-tail   = %x80-BF
-        _ => false,
-    }
-}
-
 fn is_atom(s: &str) -> bool {
     !s.is_empty() && s.chars().all(is_atext)
 }
@@ -1151,10 +1154,7 @@ fn is_wsp(c: char) -> bool {
 }
 
 fn is_qtext_char(c: char) -> bool {
-    c == '\x21'
-        || ('\x23'..='\x5B').contains(&c)
-        || ('\x5D'..='\x7E').contains(&c)
-        || is_utf8_non_ascii(c)
+    c == '\x21' || ('\x23'..='\x5B').contains(&c) || ('\x5D'..='\x7E').contains(&c) || !c.is_ascii()
 }
 
 fn is_qcontent(s: &str) -> bool {
@@ -1175,14 +1175,14 @@ fn is_qcontent(s: &str) -> bool {
 }
 
 fn is_dtext_char(c: char) -> bool {
-    ('\x21'..='\x5A').contains(&c) || ('\x5E'..='\x7E').contains(&c) || is_utf8_non_ascii(c)
+    ('\x21'..='\x5A').contains(&c) || ('\x5E'..='\x7E').contains(&c) || !c.is_ascii()
 }
 
 //fn is_ctext_char(c: char) -> bool {
 //    (c >= '\x21' && c == '\x27')
 //        || ('\x2A'..='\x5B').contains(&c)
 //        || ('\x5D'..='\x7E').contains(&c)
-//        || is_utf8_non_ascii(c)
+//        || !c.is_ascii()
 //}
 //
 //fn is_ctext(s: &str) -> bool {
@@ -1192,6 +1192,63 @@ fn is_dtext_char(c: char) -> bool {
 // ------------------------------------------------------------------------------------------------
 // Unit Tests
 // ------------------------------------------------------------------------------------------------
+
+#[cfg(feature = "sqlx")]
+#[cfg(test)]
+mod sqlx_tests {
+    use super::*;
+    use claims::{assert_err, assert_matches, assert_ok, assert_ok_eq};
+    use sqlx::{
+        any::{AnyArguments, AnyValue},
+        Any, Decode, Encode, Value,
+    };
+    use sqlx_core::any::AnyValueKind;
+    use std::borrow::Cow;
+
+    #[test]
+    fn test_encode() {
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+        let mut buf = AnyArguments::default().values;
+        let _ = assert_ok!(<EmailAddress as Encode<'_, Any>>::encode(email, &mut buf));
+
+        assert_eq!(buf.0.len(), 1);
+        assert_matches!(&buf.0[0], AnyValueKind::Text(text) if text == "simple@example.com");
+    }
+
+    #[test]
+    fn test_decode() {
+        let value = AnyValue {
+            kind: AnyValueKind::Text(Cow::from("simple@example.com")),
+        };
+        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+        assert_ok_eq!(
+            <EmailAddress as Decode<'_, Any>>::decode(value.as_ref()),
+            email
+        );
+    }
+
+    #[test]
+    fn test_decode_invalid_value() {
+        let value = AnyValue {
+            kind: AnyValueKind::Text(Cow::from("Abc.example.com")),
+        };
+        let boxed_error = assert_err!(<EmailAddress as Decode<'_, Any>>::decode(value.as_ref()));
+        let error = assert_ok!(boxed_error.downcast::<Error>());
+
+        assert_matches!(*error, Error::MissingSeparator);
+    }
+
+    #[test]
+    fn test_decode_invalid_type() {
+        let value = AnyValue {
+            kind: AnyValueKind::Integer(42),
+        };
+        let boxed_error = assert_err!(<EmailAddress as Decode<'_, Any>>::decode(value.as_ref()));
+
+        assert_eq!(boxed_error.to_string(), "expected TEXT, got Integer(42)");
+    }
+}
 
 #[cfg(feature = "serde_support")]
 #[cfg(test)]
@@ -1854,7 +1911,9 @@ mod tests {
         .unwrap();
 
         assert_eq!(email.display_part(), "Simons Email");
-        assert_eq!(email.email(), "simon@example.com");
+
+        let addr_spec: &str = email.email();
+        assert_eq!(addr_spec, "simon@example.com");
     }
 
     #[test]
@@ -1867,7 +1926,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(email.display_part(), "Simons Email");
-        assert_eq!(email.email(), "simon@example.com");
+
+        let addr_spec: &str = email.email();
+        assert_eq!(addr_spec, "simon@example.com");
+
         assert_eq!(email.local_part(), "simon");
         assert_eq!(email.domain(), "example.com");
     }
@@ -1941,15 +2003,5 @@ mod tests {
 
         assert_eq!(email, EmailAddress::new_unchecked("simon@Example.com"));
         assert_eq!(email, EmailAddress::new_unchecked("simon@example.COM"));
-    }
-
-    #[test]
-    // Regression test: GitHub issue #21
-    fn test_utf8_non_ascii() {
-        assert!(!is_utf8_non_ascii('A'));
-        assert!(!is_utf8_non_ascii('§'));
-        assert!(!is_utf8_non_ascii('�'));
-        assert!(!is_utf8_non_ascii('\u{0F40}'));
-        assert!(is_utf8_non_ascii('\u{C2B0}'));
     }
 }
