@@ -1,13 +1,11 @@
 [package]
 name = "email_address"
-version = "0.2.9"
-authors = ["Simon Johnston <johnstonskj@gmail.com>"]
+version = "0.2.10"
 description = "A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newtype. "
 documentation = "https://docs.rs/email_address/"
 repository = "https://github.com/johnstonskj/rust-email_address.git"
 edition = "2018"
-license = "MIT"
-readme = "README.md"
+license = "MIT OR Apache-2.0"
 publish = true
 
 [package.metadata.docs.rs]
@@ -15,12 +13,55 @@ publish = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [features]
-default = ["serde_support"]
+default = ["std", "serde_support"]
+std = ["alloc"]
+alloc = []
 serde_support = ["serde"]
+sqlx_postgres = ["sqlx", "sqlx/postgres"]
 
 [dependencies]
 serde = { optional = true, version = "1.0" }
+sqlx = { optional = true, version = "0.9" }
 
 [dev-dependencies]
-claims = "0.7.1"
+claims = "0.8.0"
 serde_assert = "0.8.0"
+sqlx-core = "0.9"
+
+
+[lints.rust]
+absolute_paths_not_starting_with_crate = "warn"
+anonymous_parameters = "deny"
+bare_trait_objects = "deny"
+deref_nullptr = "deny"
+drop_bounds = "deny"
+dyn_drop = "deny"
+elided_lifetimes_in_paths = "warn"
+ellipsis_inclusive_range_patterns = "deny"
+explicit_outlives_requirements = "warn"
+exported_private_dependencies = "deny"
+future_incompatible = { level = "warn", priority = -1 }
+macro_use_extern_crate = "warn"
+missing_debug_implementations = "warn"
+nonstandard_style = { level = "warn", priority = -1 }
+noop_method_call = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+rust_2021_compatibility = { level = "warn", priority = -1 }
+rust_2021_prelude_collisions = "warn"
+semicolon_in_expressions_from_macros = "warn"
+single_use_lifetimes = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unexpected_cfgs = "deny"
+unreachable_pub = "deny"
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+unused = { level = "warn", priority = -1 }
+
+[lints.rustdoc]
+all = "warn"
+missing_crate_level_docs = "warn"
+broken_intra_doc_links = "warn"
+
+[lints.clippy]
+all = "warn"

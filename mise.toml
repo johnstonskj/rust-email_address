@@ -1,0 +1,108 @@
+[tools]
+rust = { version = "latest", components = [
+    "rust-src",
+    "clippy-preview",
+], mr_boxington = true }
+
+mr-boxington = "latest"
+watchexec = "latest"
+"cargo:bacon" = "latest"
+#"cargo:cargo-edit" = "latest"
+
+[tasks."lint:check"]
+description = "Check the code for any linting issues using cargo check"
+alias = "check"
+run = "cargo check --all-targets --future-incompat-report --workspace"
+
+[tasks."lint:clippy"]
+description = "Check the code for any linting issues using cargo clippy"
+alias = "clippy"
+run = "cargo clippy --no-deps --all-targets"
+
+[tasks."lint:format"]
+description = "Format the code using cargo fmt"
+alias = "fmt"
+run = "cargo fmt --all"
+
+[tasks."lint"]
+description = "Run all linting tasks"
+run = { tasks = ["lint:check", "lint:clippy", "lint:format"] }
+
+[tasks."lint:format:check"]
+description = "Check if the code is properly formatted using cargo fmt"
+alias = "fmt-check"
+run = "cargo fmt --all --check"
+
+[tasks."build"]
+description = "Build the project using cargo build"
+depends = ["lint:format", "lint:check", "lint:clippy"]
+run = "cargo build"
+
+[tasks."clean"]
+description = "Clean the project using cargo clean"
+run = "cargo clean"
+
+[tasks."deps:audit"]
+description = "Audit the project's dependencies for security issues using cargo audit"
+tools."cargo:cargo-audit" = "latest"
+alias = "audit"
+sources = ["Cargo.toml"]
+run = "cargo audit --file {{config_root | quote}}/Cargo.lock"
+
+[tasks."deps:outdated"]
+description = "Check for outdated dependencies using cargo outdated"
+tools."cargo:cargo-outdated" = "latest"
+alias = "outdated"
+sources = ["Cargo.toml"]
+run = "cargo outdated --workspace --root-deps-only"
+
+[tasks."deps:license-deny"]
+description = "Check for denied licenses using cargo deny"
+tools."cargo:cargo-deny" = "latest"
+alias = "deny"
+sources = ["Cargo.toml"]
+run = "cargo deny check"
+
+[tasks."test:nextest"]
+description = "Run tests using cargo nextest"
+depends = ["build"]
+tools."cargo:cargo-nextest" = "latest"
+alias = "nt"
+run = "cargo nextest run --all-targets"
+
+[tasks."test:test"]
+description = "Run all tests using cargo test"
+depends = ["build"]
+alias = "test"
+run = "cargo test --all-targets"
+
+[tasks."test:coverage"]
+description = "Run all tests, with coverage, using cargo tarpaulin"
+depends = ["build"]
+tools."cargo:cargo-tarpaulin" = "latest"
+alias = "coverage"
+run = "cargo tarpaulin --all-targets --command test"
+
+[tasks."test:flamegraph"]
+description = "Generate a flamegraph for the tests using cargo flamegraph"
+depends = ["build"]
+tools."cargo:flamegraph" = "latest"
+run = "cargo flamegraph"
+
+[tasks."readme:lint"]
+description = "Lint all the README.md files in the project using markdownlint-cli2"
+tools.markdownlint-cli2 = "latest"
+run = "markdownlint-cli2 \"**/README.md\""
+
+[tasks."docs:lint"]
+description = "Lint all the documentation files, in 'doc/', using markdownlint-cli2"
+tools.markdownlint-cli2 = "latest"
+run = [{ task = "readme:lint" }, "markdownlint-cli2 \"docs/**/*.md\""]
+
+[tasks."rustdoc"]
+description = "Generate rustdoc for the project"
+run = "cargo rustdoc --lib"
+
+[tasks."pre-commit"]
+description = "Run all tasks that should be executed before committing code"
+run = { tasks = ["lint", "deps:audit", "deps:outdated", "test:test"] }
