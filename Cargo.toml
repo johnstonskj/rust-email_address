@@ -4,7 +4,7 @@ version = "0.2.10"
 description = "A Rust crate providing an implementation of an RFC-compliant `EmailAddress` newtype. "
 documentation = "https://docs.rs/email_address/"
 repository = "https://github.com/johnstonskj/rust-email_address.git"
-edition = "2018"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = true
 
