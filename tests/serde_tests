@@ -1,0 +1,66 @@
+#![cfg(feature = "serde_support")]
+
+use email_address::EmailAddress;
+use claims::{assert_err_eq, assert_ok, assert_ok_eq};
+use serde::de::{Error as _, Unexpected};
+use serde_assert::{Deserializer, Serializer, Token};
+use core::str::FromStr;
+
+#[test]
+fn test_serialize() {
+    let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+    let serializer = Serializer::builder().build();
+
+    assert_ok_eq!(
+        email.serialize(&serializer),
+        [Token::Str("simple@example.com".to_owned())]
+    );
+}
+s#[test]
+fn test_deserialize() {
+    let mut deserializer =
+        Deserializer::builder([Token::Str("simple@example.com".to_owned())]).build();
+
+    let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+    assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
+}
+
+#[test]
+fn test_deserialize_invalid_value() {
+    let mut deserializer =
+        Deserializer::builder([Token::Str("Abc.example.com".to_owned())]).build();
+
+    assert_err_eq!(
+        EmailAddress::deserialize(&mut deserializer),
+        serde_assert::de::Error::invalid_value(
+            Unexpected::Str("Abc.example.com"),
+            &"Missing separator character '@'."
+        )
+    );
+}
+
+#[test]
+fn test_deserialize_invalid_type() {
+    let mut deserializer = Deserializer::builder([Token::U64(42)]).build();
+
+    assert_err_eq!(
+        EmailAddress::deserialize(&mut deserializer),
+        serde_assert::de::Error::invalid_type(
+            Unexpected::Unsigned(42),
+            &"string containing a valid email address"
+        )
+    );
+}
+
+// Regression test: GitHub issue #26
+#[test]
+fn test_serde_roundtrip() {
+    let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
+
+    let serializer = Serializer::builder().build();
+    let mut deserializer =
+        Deserializer::builder(assert_ok!(email.serialize(&serializer))).build();
+
+    assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
+}

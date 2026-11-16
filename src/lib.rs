@@ -256,14 +256,20 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 
 */
 
-//#[cfg(not(feature = "std"))]
-//extern crate alloc;
+#[cfg(not(feature = "std"))]
+extern crate alloc;
 
 use core::{
+    cmp::Ordering,
     fmt::{Debug, Display, Formatter},
     hash::Hash,
     str::FromStr,
 };
+
+#[cfg(not(feature = "std"))]
+use alloc::borrow::Cow;
+#[cfg(feature = "std")]
+use std::borrow::Cow;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize, Serializer};
@@ -272,132 +278,11 @@ use serde::{Deserialize, Serialize, Serializer};
 use sqlx::postgres::{PgHasArrayType, PgTypeInfo};
 
 #[cfg(feature = "sqlx")]
-use sqlx::{encode::IsNull, error::BoxDynError, Database, Decode, Encode, Type};
+use sqlx::{Database, Decode, Encode, Type, encode::IsNull, error::BoxDynError};
 
 // ------------------------------------------------------------------------------------------------
 // Public Types
 // ------------------------------------------------------------------------------------------------
-
-///
-/// Error type used when parsing an address.
-///
-#[derive(Debug, Clone, PartialEq)]
-pub enum Error {
-    /// An invalid character was found in some component of the address.
-    InvalidCharacter,
-    /// The separator character between `local-part` and `domain` (character: '@') was missing.
-    MissingSeparator,
-    /// The `local-part` is an empty string.
-    LocalPartEmpty,
-    /// The `local-part` is is too long.
-    LocalPartTooLong,
-    /// The `domain` is an empty string.
-    DomainEmpty,
-    /// The `domain` is is too long.
-    DomainTooLong,
-    /// The `sub-domain` within the `domain` is empty.
-    SubDomainEmpty,
-    /// A `sub-domain` within the `domain` is is too long.
-    SubDomainTooLong,
-    /// Too few `sub-domain`s in `domain`.
-    DomainTooFew,
-    /// Invalid placement of the domain separator (character: '.').
-    DomainInvalidSeparator,
-    /// The quotes (character: '"') around `local-part` are unbalanced.
-    UnbalancedQuotes,
-    /// A Comment within the either the `local-part`, or `domain`, was malformed.
-    InvalidComment,
-    /// An IP address in a `domain-literal` was malformed.
-    InvalidIPAddress,
-    /// A `domain-literal` was supplied, but is unsupported by parser configuration.
-    UnsupportedDomainLiteral,
-    /// Display name was supplied, but is unsupported by parser configuration.
-    UnsupportedDisplayName,
-    /// Display name was not supplied, but email starts with '<'.
-    MissingDisplayName,
-    /// An email enclosed within <...> is missing the final '>'.
-    MissingEndBracket,
-}
-
-///
-/// Struct of options that can be configured when parsing with `parse_with_options`.
-///
-#[derive(Debug, Copy, Clone)]
-pub struct Options {
-    ///
-    /// Sets the minimum number of domain segments that must exist to parse successfully.
-    ///
-    /// ```rust
-    /// use email_address::*;
-    ///
-    /// assert!(
-    ///     EmailAddress::parse_with_options(
-    ///         "simon@localhost",
-    ///         Options::default().with_no_minimum_sub_domains(),
-    ///     ).is_ok()
-    /// );
-    /// assert_eq!(
-    ///     EmailAddress::parse_with_options(
-    ///         "simon@localhost",
-    ///         Options::default().with_required_tld()
-    ///     ),
-    ///     Err(Error::DomainTooFew)
-    /// );
-    /// ```
-    ///
-    pub minimum_sub_domains: usize,
-
-    ///
-    /// Specifies if domain literals are allowed. Defaults to `true`.
-    ///
-    /// ```rust
-    /// use email_address::*;
-    ///
-    /// assert!(
-    ///     EmailAddress::parse_with_options(
-    ///         "email@[127.0.0.256]",
-    ///         Options::default().with_domain_literal()
-    ///     ).is_ok()
-    /// );
-    ///
-    /// assert_eq!(
-    ///     EmailAddress::parse_with_options(
-    ///         "email@[127.0.0.256]",
-    ///         Options::default().without_domain_literal()
-    ///     ),
-    ///     Err(Error::UnsupportedDomainLiteral),
-    /// );
-    /// ```
-    ///
-    pub allow_domain_literal: bool,
-
-    ///
-    /// Specified whether display text is allowed. Defaults to `true`. If you want strict
-    /// email-only checking setting this to `false` will remove support for the prefix string
-    /// and therefore the '<' and '>' brackets around the email part.
-    ///
-    /// ```rust
-    /// use email_address::*;
-    ///
-    /// assert_eq!(
-    ///     EmailAddress::parse_with_options(
-    ///         "Simon <simon@example.com>",
-    ///         Options::default().without_display_text()
-    ///     ),
-    ///     Err(Error::UnsupportedDisplayName),
-    /// );
-    ///
-    /// assert_eq!(
-    ///     EmailAddress::parse_with_options(
-    ///         "<simon@example.com>",
-    ///         Options::default().without_display_text()
-    ///     ),
-    ///     Err(Error::InvalidCharacter),
-    /// );
-    /// ```
-    ///
-    pub allow_display_text: bool,
-}
 
 ///
 /// Type representing a single email address. This is basically a wrapper around a String, the
@@ -412,21 +297,17 @@ pub struct EmailAddress(String);
 // Implementations
 // ------------------------------------------------------------------------------------------------
 
-const LOCAL_PART_MAX_LENGTH: usize = 64;
+pub(crate) const LOCAL_PART_MAX_LENGTH: usize = 64;
 // see: https://www.rfc-editor.org/errata_search.php?rfc=3696&eid=1690
-const DOMAIN_MAX_LENGTH: usize = 254;
-const SUB_DOMAIN_MAX_LENGTH: usize = 63;
+pub(crate) const DOMAIN_MAX_LENGTH: usize = 254;
+pub(crate) const SUB_DOMAIN_MAX_LENGTH: usize = 63;
 
-#[allow(dead_code)]
-const CR: char = '\r';
-#[allow(dead_code)]
-const LF: char = '\n';
 const SP: char = ' ';
 const HTAB: char = '\t';
 const ESC: char = '\\';
 
-const AT: char = '@';
-const DOT: char = '.';
+pub(crate) const AT: char = '@';
+pub(crate) const DOT: char = '.';
 const DQUOTE: char = '"';
 const LBRACKET: char = '[';
 const RBRACKET: char = ']';
@@ -440,127 +321,6 @@ const DISPLAY_START: char = '<';
 const DISPLAY_END: char = '>';
 
 const MAILTO_URI_PREFIX: &str = "mailto:";
-
-// ------------------------------------------------------------------------------------------------
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::InvalidCharacter => write!(f, "Invalid character."),
-            Error::LocalPartEmpty => write!(f, "Local part is empty."),
-            Error::LocalPartTooLong => write!(
-                f,
-                "Local part is too long. Length limit: {}",
-                LOCAL_PART_MAX_LENGTH
-            ),
-            Error::DomainEmpty => write!(f, "Domain is empty."),
-            Error::DomainTooLong => {
-                write!(f, "Domain is too long. Length limit: {}", DOMAIN_MAX_LENGTH)
-            }
-            Error::SubDomainEmpty => write!(f, "A sub-domain is empty."),
-            Error::SubDomainTooLong => write!(
-                f,
-                "A sub-domain is too long. Length limit: {}",
-                SUB_DOMAIN_MAX_LENGTH
-            ),
-            Error::MissingSeparator => write!(f, "Missing separator character '{}'.", AT),
-            Error::DomainTooFew => write!(f, "Too few parts in the domain"),
-            Error::DomainInvalidSeparator => {
-                write!(f, "Invalid placement of the domain separator '{:?}", DOT)
-            }
-            Error::InvalidIPAddress => write!(f, "Invalid IP Address specified for domain."),
-            Error::UnbalancedQuotes => write!(f, "Quotes around the local-part are unbalanced."),
-            Error::InvalidComment => write!(f, "A comment was badly formed."),
-            Error::UnsupportedDomainLiteral => write!(f, "Domain literals are not supported."),
-            Error::UnsupportedDisplayName => write!(f, "Display names are not supported."),
-            Error::MissingDisplayName => write!(
-                f,
-                "Display name was not supplied, but email starts with '<'."
-            ),
-            Error::MissingEndBracket => write!(f, "Terminating '>' is missing."),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl<T> From<Error> for std::result::Result<T, Error> {
-    fn from(err: Error) -> Self {
-        Err(err)
-    }
-}
-
-// ------------------------------------------------------------------------------------------------
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            minimum_sub_domains: Default::default(),
-            allow_domain_literal: true,
-            allow_display_text: true,
-        }
-    }
-}
-
-impl Options {
-    /// Set the value of `minimum_sub_domains`.
-    #[inline(always)]
-    pub const fn with_minimum_sub_domains(self, min: usize) -> Self {
-        Self {
-            minimum_sub_domains: min,
-            ..self
-        }
-    }
-    #[inline(always)]
-    /// Set the value of `minimum_sub_domains` to zero.
-    pub const fn with_no_minimum_sub_domains(self) -> Self {
-        Self {
-            minimum_sub_domains: 0,
-            ..self
-        }
-    }
-    #[inline(always)]
-    /// Set the value of `minimum_sub_domains` to two, this has the effect of requiring a
-    /// domain name with a top-level domain (TLD).
-    pub const fn with_required_tld(self) -> Self {
-        Self {
-            minimum_sub_domains: 2,
-            ..self
-        }
-    }
-    /// Set the value of `allow_domain_literal` to `true`.
-    #[inline(always)]
-    pub const fn with_domain_literal(self) -> Self {
-        Self {
-            allow_domain_literal: true,
-            ..self
-        }
-    }
-    /// Set the value of `allow_domain_literal` to `false`.
-    #[inline(always)]
-    pub const fn without_domain_literal(self) -> Self {
-        Self {
-            allow_domain_literal: false,
-            ..self
-        }
-    }
-    /// Set the value of `allow_display_text` to `true`.
-    #[inline(always)]
-    pub const fn with_display_text(self) -> Self {
-        Self {
-            allow_display_text: true,
-            ..self
-        }
-    }
-    /// Set the value of `allow_display_text` to `false`.
-    #[inline(always)]
-    pub const fn without_display_text(self) -> Self {
-        Self {
-            allow_display_text: false,
-            ..self
-        }
-    }
-}
 
 // ------------------------------------------------------------------------------------------------
 
@@ -580,21 +340,50 @@ impl Display for EmailAddress {
 // follow normal DNS rules and are hence not case sensitive.
 //
 
+// ------------------------------------------------------------------------------------------------
+
 impl PartialEq for EmailAddress {
     fn eq(&self, other: &Self) -> bool {
-        let (left, right) = split_at(&self.0).unwrap();
-        let (other_left, other_right) = split_at(&other.0).unwrap();
-        left.eq(other_left) && right.eq_ignore_ascii_case(other_right)
+        self.with_lowercase_domain() == other.with_lowercase_domain()
     }
 }
 
 impl Eq for EmailAddress {}
 
+// ------------------------------------------------------------------------------------------------
+
 impl Hash for EmailAddress {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
+        let (left, right) = split_at(&self.0).unwrap();
+        left.hash(state);
+        // Avoid allocating if right is already lowercase ASCII.
+        if right
+            .chars()
+            .all(|char| !char.is_ascii() || char.is_ascii_lowercase())
+        {
+            right.hash(state)
+        } else {
+            right.to_ascii_lowercase().hash(state);
+        }
     }
 }
+
+// ------------------------------------------------------------------------------------------------
+
+impl Ord for EmailAddress {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.with_lowercase_domain()
+            .cmp(&other.with_lowercase_domain())
+    }
+}
+
+impl PartialOrd for EmailAddress {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
 
 impl FromStr for EmailAddress {
     type Err = Error;
@@ -604,17 +393,23 @@ impl FromStr for EmailAddress {
     }
 }
 
+// ------------------------------------------------------------------------------------------------
+
 impl From<EmailAddress> for String {
     fn from(email: EmailAddress) -> Self {
         email.0
     }
 }
 
+// ------------------------------------------------------------------------------------------------
+
 impl AsRef<str> for EmailAddress {
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
+
+// ------------------------------------------------------------------------------------------------
 
 #[cfg(feature = "serde_support")]
 impl Serialize for EmailAddress {
@@ -658,6 +453,8 @@ impl<'de> Deserialize<'de> for EmailAddress {
     }
 }
 
+// ------------------------------------------------------------------------------------------------
+
 #[cfg(feature = "sqlx")]
 impl<DB: Database> Type<DB> for EmailAddress
 where
@@ -669,16 +466,6 @@ where
 
     fn compatible(ty: &DB::TypeInfo) -> bool {
         <String as Type<DB>>::compatible(ty)
-    }
-}
-
-#[cfg(feature = "sqlx_postgres")]
-impl PgHasArrayType for EmailAddress
-where
-    String: PgHasArrayType,
-{
-    fn array_type_info() -> PgTypeInfo {
-        <String as PgHasArrayType>::array_type_info()
     }
 }
 
@@ -712,6 +499,20 @@ where
         Ok(Self::from_str(&<String as Decode<'a, DB>>::decode(value)?)?)
     }
 }
+
+// ------------------------------------------------------------------------------------------------
+
+#[cfg(feature = "sqlx_postgres")]
+impl PgHasArrayType for EmailAddress
+where
+    String: PgHasArrayType,
+{
+    fn array_type_info() -> PgTypeInfo {
+        <String as PgHasArrayType>::array_type_info()
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
 
 impl EmailAddress {
     ///
@@ -903,6 +704,24 @@ impl EmailAddress {
     pub fn as_str(&self) -> &str {
         self.as_ref()
     }
+
+    ///
+    /// Get a canonical version of this email address which can be compared with others.
+    ///
+    /// This returns a Cow to avoid allocating a replacement String in the hopefully common
+    /// case of lowercase input domains.
+    ///
+    fn with_lowercase_domain<'a>(&'a self) -> Cow<'a, str> {
+        let (left, right) = split_at(&self.0).unwrap();
+        if right
+            .chars()
+            .all(|char| !char.is_ascii() || char.is_ascii_lowercase())
+        {
+            Cow::Borrowed(&self.0)
+        } else {
+            Cow::Owned(format!("{}@{}", left, right.to_ascii_lowercase()))
+        }
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -995,10 +814,10 @@ fn split_at(address: &str) -> Result<(&str, &str), Error> {
     }
 }
 
-fn parse_local_part(part: &str, _: Options) -> Result<(), Error> {
+fn parse_local_part(part: &str, options: Options) -> Result<(), Error> {
     if part.is_empty() {
         Error::LocalPartEmpty.into()
-    } else if part.len() > LOCAL_PART_MAX_LENGTH {
+    } else if part.len() > LOCAL_PART_MAX_LENGTH && !options.allow_long_local_parts {
         Error::LocalPartTooLong.into()
     } else if part.starts_with(DQUOTE) && part.ends_with(DQUOTE) {
         // <= to handle `part` = `"` (single quote).
@@ -1121,22 +940,6 @@ fn is_atext(c: char) -> bool {
         || !c.is_ascii()
 }
 
-//fn is_special(c: char) -> bool {
-//    c == '('
-//        || c == ')'
-//        || c == '<'
-//        || c == '>'
-//        || c == '['
-//        || c == ']'
-//        || c == ':'
-//        || c == ';'
-//        || c == '@'
-//        || c == '\\'
-//        || c == ','
-//        || c == '.'
-//        || c == DQUOTE
-//}
-
 fn is_atom(s: &str) -> bool {
     !s.is_empty() && s.chars().all(is_atext)
 }
@@ -1178,830 +981,12 @@ fn is_dtext_char(c: char) -> bool {
     ('\x21'..='\x5A').contains(&c) || ('\x5E'..='\x7E').contains(&c) || !c.is_ascii()
 }
 
-//fn is_ctext_char(c: char) -> bool {
-//    (c >= '\x21' && c == '\x27')
-//        || ('\x2A'..='\x5B').contains(&c)
-//        || ('\x5D'..='\x7E').contains(&c)
-//        || !c.is_ascii()
-//}
-//
-//fn is_ctext(s: &str) -> bool {
-//    s.chars().all(is_ctext_char)
-//}
-
 // ------------------------------------------------------------------------------------------------
-// Unit Tests
+// Sub Modules
 // ------------------------------------------------------------------------------------------------
 
-#[cfg(feature = "sqlx")]
-#[cfg(test)]
-mod sqlx_tests {
-    use super::*;
-    use claims::{assert_err, assert_matches, assert_ok, assert_ok_eq};
-    use sqlx::{
-        any::{AnyArguments, AnyValue},
-        Any, Decode, Encode, Value,
-    };
-    use sqlx_core::any::AnyValueKind;
-    use std::borrow::Cow;
-
-    #[test]
-    fn test_encode() {
-        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
-        let mut buf = AnyArguments::default().values;
-        let _ = assert_ok!(<EmailAddress as Encode<'_, Any>>::encode(email, &mut buf));
-
-        assert_eq!(buf.0.len(), 1);
-        assert_matches!(&buf.0[0], AnyValueKind::Text(text) if text == "simple@example.com");
-    }
-
-    #[test]
-    fn test_decode() {
-        let value = AnyValue {
-            kind: AnyValueKind::Text(Cow::from("simple@example.com")),
-        };
-        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
-
-        assert_ok_eq!(
-            <EmailAddress as Decode<'_, Any>>::decode(value.as_ref()),
-            email
-        );
-    }
-
-    #[test]
-    fn test_decode_invalid_value() {
-        let value = AnyValue {
-            kind: AnyValueKind::Text(Cow::from("Abc.example.com")),
-        };
-        let boxed_error = assert_err!(<EmailAddress as Decode<'_, Any>>::decode(value.as_ref()));
-        let error = assert_ok!(boxed_error.downcast::<Error>());
-
-        assert_matches!(*error, Error::MissingSeparator);
-    }
-
-    #[test]
-    fn test_decode_invalid_type() {
-        let value = AnyValue {
-            kind: AnyValueKind::Integer(42),
-        };
-        let boxed_error = assert_err!(<EmailAddress as Decode<'_, Any>>::decode(value.as_ref()));
-
-        assert_eq!(boxed_error.to_string(), "expected TEXT, got Integer(42)");
-    }
-}
-
-#[cfg(feature = "serde_support")]
-#[cfg(test)]
-mod serde_tests {
-    use super::*;
-    use claims::{assert_err_eq, assert_ok, assert_ok_eq};
-    use serde::de::{Error as _, Unexpected};
-    use serde_assert::{Deserializer, Serializer, Token};
-
-    #[test]
-    fn test_serialize() {
-        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
-
-        let serializer = Serializer::builder().build();
-
-        assert_ok_eq!(
-            email.serialize(&serializer),
-            [Token::Str("simple@example.com".to_owned())]
-        );
-    }
-
-    #[test]
-    fn test_deserialize() {
-        let mut deserializer =
-            Deserializer::builder([Token::Str("simple@example.com".to_owned())]).build();
-
-        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
-        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
-    }
-
-    #[test]
-    fn test_deserialize_invalid_value() {
-        let mut deserializer =
-            Deserializer::builder([Token::Str("Abc.example.com".to_owned())]).build();
-
-        assert_err_eq!(
-            EmailAddress::deserialize(&mut deserializer),
-            serde_assert::de::Error::invalid_value(
-                Unexpected::Str("Abc.example.com"),
-                &"Missing separator character '@'."
-            )
-        );
-    }
-
-    #[test]
-    fn test_deserialize_invalid_type() {
-        let mut deserializer = Deserializer::builder([Token::U64(42)]).build();
-
-        assert_err_eq!(
-            EmailAddress::deserialize(&mut deserializer),
-            serde_assert::de::Error::invalid_type(
-                Unexpected::Unsigned(42),
-                &"string containing a valid email address"
-            )
-        );
-    }
-
-    // Regression test: GitHub issue #26
-    #[test]
-    fn test_serde_roundtrip() {
-        let email = assert_ok!(EmailAddress::from_str("simple@example.com"));
-
-        let serializer = Serializer::builder().build();
-        let mut deserializer =
-            Deserializer::builder(assert_ok!(email.serialize(&serializer))).build();
-
-        assert_ok_eq!(EmailAddress::deserialize(&mut deserializer), email);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn is_valid(address: &str, test_case: Option<&str>) {
-        if let Some(test_case) = test_case {
-            println!(">> test case: {}", test_case);
-            println!("     <{}>", address);
-        } else {
-            println!(">> <{}>", address);
-        }
-        assert!(EmailAddress::is_valid(address));
-    }
-
-    fn valid_with_options(address: &str, options: Options, test_case: Option<&str>) {
-        if let Some(test_case) = test_case {
-            println!(">> test case: {}", test_case);
-            println!("     <{}>", address);
-        } else {
-            println!(">> <{}>", address);
-        }
-        assert!(EmailAddress::parse_with_options(address, options).is_ok());
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_01() {
-        is_valid("simple@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_02() {
-        is_valid("very.common@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_03() {
-        is_valid("disposable.style.email.with+symbol@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_04() {
-        is_valid("other.email-with-hyphen@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_05() {
-        is_valid("fully-qualified-domain@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_06() {
-        is_valid(
-            "user.name+tag+sorting@example.com",
-            Some(" may go to user.name@example.com inbox depending on mail server"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_07() {
-        is_valid("x@example.com", Some("one-letter local-part"));
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_08() {
-        is_valid("example-indeed@strange-example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_09() {
-        is_valid(
-            "admin@mailserver1",
-            Some("local domain name with no TLD, although ICANN highly discourages dotless email addresses")
-        );
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_10() {
-        is_valid(
-            "example@s.example",
-            Some("see the List of Internet top-level domains"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_11() {
-        is_valid("\" \"@example.org", Some("space between the quotes"));
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_12() {
-        is_valid("\"john..doe\"@example.org", Some("quoted double dot"));
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_13() {
-        is_valid(
-            "mailhost!username@example.org",
-            Some("bangified host route used for uucp mailers"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_14() {
-        is_valid(
-            "user%example.com@example.org",
-            Some("% escaped mail route to user@example.com via example.org"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_15() {
-        is_valid("jsmith@[192.168.2.1]", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_16() {
-        is_valid("jsmith@[IPv6:2001:db8::1]", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_17() {
-        is_valid("user+mailbox/department=shipping@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_18() {
-        is_valid("!#$%&'*+-/=?^_`.{|}~@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_19() {
-        // '@' is allowed in a quoted local part. Sorry.
-        is_valid("\"Abc@def\"@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_20() {
-        is_valid("\"Joe.\\\\Blow\"@example.com", None);
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_21() {
-        is_valid("用户@例子.广告", Some("Chinese"));
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_22() {
-        is_valid("अजय@डाटा.भारत", Some("Hindi"));
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_23() {
-        is_valid("квіточка@пошта.укр", Some("Ukranian"));
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_24() {
-        is_valid("θσερ@εχαμπλε.ψομ", Some("Greek"));
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_25() {
-        is_valid("Dörte@Sörensen.example.com", Some("German"));
-    }
-
-    #[test]
-    fn test_good_examples_from_wikipedia_26() {
-        is_valid("коля@пример.рф", Some("Russian"));
-    }
-
-    #[test]
-    fn test_good_examples_01() {
-        valid_with_options(
-            "foo@example.com",
-            Options {
-                minimum_sub_domains: 2,
-                ..Default::default()
-            },
-            Some("minimum sub domains"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_02() {
-        valid_with_options(
-            "email@[127.0.0.256]",
-            Options {
-                allow_domain_literal: true,
-                ..Default::default()
-            },
-            Some("minimum sub domains"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_03() {
-        valid_with_options(
-            "email@[2001:db8::12345]",
-            Options {
-                allow_domain_literal: true,
-                ..Default::default()
-            },
-            Some("minimum sub domains"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_04() {
-        valid_with_options(
-            "email@[2001:db8:0:0:0:0:1]",
-            Options {
-                allow_domain_literal: true,
-                ..Default::default()
-            },
-            Some("minimum sub domains"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_05() {
-        valid_with_options(
-            "email@[::ffff:127.0.0.256]",
-            Options {
-                allow_domain_literal: true,
-                ..Default::default()
-            },
-            Some("minimum sub domains"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_06() {
-        valid_with_options(
-            "email@[2001:dg8::1]",
-            Options {
-                allow_domain_literal: true,
-                ..Default::default()
-            },
-            Some("minimum sub domains"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_07() {
-        valid_with_options(
-            "email@[2001:dG8:0:0:0:0:0:1]",
-            Options {
-                allow_domain_literal: true,
-                ..Default::default()
-            },
-            Some("minimum sub domains"),
-        );
-    }
-
-    #[test]
-    fn test_good_examples_08() {
-        valid_with_options(
-            "email@[::fTzF:127.0.0.1]",
-            Options {
-                allow_domain_literal: true,
-                ..Default::default()
-            },
-            Some("minimum sub domains"),
-        );
-    }
-
-    // ------------------------------------------------------------------------------------------------
-
-    #[test]
-    fn test_to_strings() {
-        let email = EmailAddress::from_str("коля@пример.рф").unwrap();
-
-        assert_eq!(String::from(email.clone()), String::from("коля@пример.рф"));
-
-        assert_eq!(email.to_string(), String::from("коля@пример.рф"));
-
-        assert_eq!(email.as_ref(), "коля@пример.рф");
-    }
-
-    #[test]
-    fn test_to_display() {
-        let email = EmailAddress::from_str("коля@пример.рф").unwrap();
-
-        assert_eq!(
-            email.to_display("коля"),
-            String::from("коля <коля@пример.рф>")
-        );
-    }
-
-    #[test]
-    fn test_touri() {
-        let email = EmailAddress::from_str("коля@пример.рф").unwrap();
-
-        assert_eq!(email.to_uri(), String::from("mailto:коля@пример.рф"));
-    }
-
-    // ------------------------------------------------------------------------------------------------
-
-    fn expect(address: &str, error: Error, test_case: Option<&str>) {
-        if let Some(test_case) = test_case {
-            println!(">> test case: {}", test_case);
-            println!("     <{}>, expecting {:?}", address, error);
-        } else {
-            println!(">> <{}>, expecting {:?}", address, error);
-        }
-        assert_eq!(EmailAddress::from_str(address), error.into());
-    }
-
-    fn expect_with_options(address: &str, options: Options, error: Error, test_case: Option<&str>) {
-        if let Some(test_case) = test_case {
-            println!(">> test case: {}", test_case);
-            println!("     <{}>, expecting {:?}", address, error);
-        } else {
-            println!(">> <{}>, expecting {:?}", address, error);
-        }
-        assert_eq!(
-            EmailAddress::parse_with_options(address, options),
-            error.into()
-        );
-    }
-
-    #[test]
-    fn test_bad_examples_from_wikipedia_00() {
-        expect(
-            "Abc.example.com",
-            Error::MissingSeparator,
-            Some("no @ character"),
-        );
-    }
-
-    #[test]
-    fn test_bad_examples_from_wikipedia_01() {
-        expect(
-            "A@b@c@example.com",
-            Error::InvalidCharacter,
-            Some("only one @ is allowed outside quotation marks"),
-        );
-    }
-
-    #[test]
-    fn test_bad_examples_from_wikipedia_02() {
-        expect(
-            "a\"b(c)d,e:f;g<h>i[j\\k]l@example.com",
-            Error::InvalidCharacter,
-            Some("none of the special characters in this local-part are allowed outside quotation marks")
-        );
-    }
-
-    #[test]
-    fn test_bad_examples_from_wikipedia_03() {
-        expect(
-            "just\"not\"right@example.com",
-            Error::InvalidCharacter,
-            Some(
-                "quoted strings must be dot separated or the only element making up the local-part",
-            ),
-        );
-    }
-
-    #[test]
-    fn test_bad_examples_from_wikipedia_04() {
-        expect(
-            "this is\"not\\allowed@example.com",
-            Error::InvalidCharacter,
-            Some("spaces, quotes, and backslashes may only exist when within quoted strings and preceded by a backslash")
-        );
-    }
-
-    #[test]
-    fn test_bad_examples_from_wikipedia_05() {
-        expect(
-            "this\\ still\"not\\allowed@example.com",
-            Error::InvalidCharacter,
-            Some("even if escaped (preceded by a backslash), spaces, quotes, and backslashes must still be contained by quotes")
-        );
-    }
-
-    #[test]
-    fn test_bad_examples_from_wikipedia_06() {
-        expect(
-            "1234567890123456789012345678901234567890123456789012345678901234+x@example.com",
-            Error::LocalPartTooLong,
-            Some("local part is longer than 64 characters"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_01() {
-        expect(
-            "foo@example.v1234567890123456789012345678901234567890123456789012345678901234v.com",
-            Error::SubDomainTooLong,
-            Some("domain part is longer than 64 characters"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_02() {
-        expect(
-            "@example.com",
-            Error::LocalPartEmpty,
-            Some("local-part is empty"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_03() {
-        expect(
-            "\"\"@example.com",
-            Error::LocalPartEmpty,
-            Some("local-part is empty"),
-        );
-        expect(
-            "\"@example.com",
-            Error::LocalPartEmpty,
-            Some("local-part is empty"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_04() {
-        expect("simon@", Error::DomainEmpty, Some("domain is empty"));
-    }
-
-    #[test]
-    fn test_bad_example_05() {
-        expect(
-            "example@invalid-.com",
-            Error::InvalidCharacter,
-            Some("domain label ends with hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_06() {
-        expect(
-            "example@-invalid.com",
-            Error::InvalidCharacter,
-            Some("domain label starts with hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_07() {
-        expect(
-            "example@invalid.com-",
-            Error::InvalidCharacter,
-            Some("domain label starts ends hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_08() {
-        expect(
-            "example@inv-.alid-.com",
-            Error::InvalidCharacter,
-            Some("subdomain label ends hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_09() {
-        expect(
-            "example@-inv.alid-.com",
-            Error::InvalidCharacter,
-            Some("subdomain label starts hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_10() {
-        expect(
-            "example@-.com",
-            Error::InvalidCharacter,
-            Some("domain label is hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_11() {
-        expect(
-            "example@-",
-            Error::InvalidCharacter,
-            Some("domain label is hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_12() {
-        expect(
-            "example@-abc",
-            Error::InvalidCharacter,
-            Some("domain label starts with hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_13() {
-        expect(
-            "example@abc-",
-            Error::InvalidCharacter,
-            Some("domain label ends with hyphen"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_14() {
-        expect(
-            "example@.com",
-            Error::SubDomainEmpty,
-            Some("subdomain label is empty"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_15() {
-        expect_with_options(
-            "foo@localhost",
-            Options::default().with_minimum_sub_domains(2),
-            Error::DomainTooFew,
-            Some("too few domains"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_16() {
-        expect_with_options(
-            "foo@a.b.c.d.e.f.g.h.i",
-            Options::default().with_minimum_sub_domains(10),
-            Error::DomainTooFew,
-            Some("too few domains"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_17() {
-        expect_with_options(
-            "email@[127.0.0.256]",
-            Options::default().without_domain_literal(),
-            Error::UnsupportedDomainLiteral,
-            Some("unsupported domain literal (1)"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_18() {
-        expect_with_options(
-            "email@[2001:db8::12345]",
-            Options::default().without_domain_literal(),
-            Error::UnsupportedDomainLiteral,
-            Some("unsupported domain literal (2)"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_19() {
-        expect_with_options(
-            "email@[2001:db8:0:0:0:0:1]",
-            Options::default().without_domain_literal(),
-            Error::UnsupportedDomainLiteral,
-            Some("unsupported domain literal (3)"),
-        );
-    }
-
-    #[test]
-    fn test_bad_example_20() {
-        expect_with_options(
-            "email@[::ffff:127.0.0.256]",
-            Options::default().without_domain_literal(),
-            Error::UnsupportedDomainLiteral,
-            Some("unsupported domain literal (4)"),
-        );
-    }
-
-    // make sure Error impl Send + Sync
-    fn is_send<T: Send>() {}
-    fn is_sync<T: Sync>() {}
-
-    #[test]
-    fn test_error_traits() {
-        is_send::<Error>();
-        is_sync::<Error>();
-    }
-
-    #[test]
-    fn test_parse_trimmed() {
-        let email = EmailAddress::parse_with_options(
-            "  Simons Email    <simon@example.com> ",
-            Options::default(),
-        )
-        .unwrap();
-
-        assert_eq!(email.display_part(), "Simons Email");
-
-        let addr_spec: &str = email.email();
-        assert_eq!(addr_spec, "simon@example.com");
-    }
-
-    #[test]
-    // Feature test: GitHub PR: #15
-    fn test_parse_display_name() {
-        let email = EmailAddress::parse_with_options(
-            "Simons Email <simon@example.com>",
-            Options::default(),
-        )
-        .unwrap();
-
-        assert_eq!(email.display_part(), "Simons Email");
-
-        let addr_spec: &str = email.email();
-        assert_eq!(addr_spec, "simon@example.com");
-
-        assert_eq!(email.local_part(), "simon");
-        assert_eq!(email.domain(), "example.com");
-    }
-
-    #[test]
-    // Feature test: GitHub PR: #15
-    fn test_parse_display_empty_name() {
-        expect(
-            "<simon@example.com>",
-            Error::MissingDisplayName,
-            Some("missing display name"),
-        );
-    }
-
-    #[test]
-    // Feature test: GitHub PR: #15
-    // Reference: GitHub issue #14
-    fn test_parse_display_empty_name_2() {
-        expect_with_options(
-            "<simon@example.com>",
-            Options::default().without_display_text(),
-            Error::InvalidCharacter,
-            Some("without display text '<' is invalid"),
-        );
-    }
-
-    #[test]
-    // Feature test: GitHub PR: #15
-    // Reference: GitHub issue #14
-    fn test_parse_display_name_unsupported() {
-        expect_with_options(
-            "Simons Email <simon@example.com>",
-            Options::default().without_display_text(),
-            Error::UnsupportedDisplayName,
-            Some("unsupported display name (1)"),
-        );
-    }
-
-    #[test]
-    // Regression test: GitHub issue #23
-    fn test_missing_tld() {
-        EmailAddress::parse_with_options("simon@localhost", Options::default()).unwrap();
-        EmailAddress::parse_with_options(
-            "simon@localhost",
-            Options::default().with_no_minimum_sub_domains(),
-        )
-        .unwrap();
-
-        expect_with_options(
-            "simon@localhost",
-            Options::default().with_required_tld(),
-            Error::DomainTooFew,
-            Some("too few domain segments"),
-        );
-    }
-
-    #[test]
-    // Regression test: GitHub issue #11
-    fn test_eq_name_case_sensitive_local() {
-        let email = EmailAddress::new_unchecked("simon@example.com");
-
-        assert_eq!(email, EmailAddress::new_unchecked("simon@example.com"));
-        assert_ne!(email, EmailAddress::new_unchecked("Simon@example.com"));
-        assert_ne!(email, EmailAddress::new_unchecked("simoN@example.com"));
-    }
-
-    #[test]
-    // Regression test: GitHub issue #11
-    fn test_eq_name_case_insensitive_domain() {
-        let email = EmailAddress::new_unchecked("simon@example.com");
-
-        assert_eq!(email, EmailAddress::new_unchecked("simon@Example.com"));
-        assert_eq!(email, EmailAddress::new_unchecked("simon@example.COM"));
-    }
-}
+mod errors;
+pub use errors::Error;
+
+mod options;
+pub use options::Options;
