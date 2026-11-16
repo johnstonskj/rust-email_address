@@ -79,6 +79,16 @@ assert_eq!(
 
 ## Changes
 
+### Version 0.2.10
+
+* Merged pull requests:
+  * #36/57 no_std support
+  * #40 bump Rust edition number
+  * #44 long local part support
+  * #46 zeroization support
+  * #47 utoipa support
+  * #53 display like text in quoted local parts
+
 ### Version 0.2.9
 
 * Fixed bug [#21](https://github.com/johnstonskj/rust-email_address/issues/21):
