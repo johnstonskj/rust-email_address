@@ -704,7 +704,6 @@ fn test_allow_long_local_parts() {
     )
 }
 
-
 // [GitHub PR #53] Fix: handle display-like text in quoted local parts
 #[test]
 fn test_quoted_local_part_with_display_like_text() {

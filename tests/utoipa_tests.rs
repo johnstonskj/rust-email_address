@@ -1,8 +1,8 @@
-//! 
+//!
 //! Tests for the `utoipa_support` feature of the `email_address` crate.
-//! 
+//!
 //! Added by GitHub PR #47: [Add utoipa for OpenAPI docs](https://github.com/johnstonskj/rust-email_address/pull/47)
-//! 
+//!
 #![cfg(feature = "utoipa_support")]
 
 use email_address::EmailAddress;

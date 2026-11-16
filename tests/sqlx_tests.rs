@@ -1,8 +1,8 @@
-//! 
+//!
 //! Tests for the `sqlx_support` feature of the `email_address` crate.
-//! 
+//!
 //! Added by GitHub PR #33: [Add support for sqlx types](https://github.com/johnstonskj/rust-email_address/pull/33)
-//! 
+//!
 #![cfg(feature = "sqlx")]
 
 use claims::{assert_err, assert_matches, assert_ok, assert_ok_eq};
@@ -17,7 +17,7 @@ use sqlx_core::any::AnyValueKind;
 #[cfg(not(feature = "std"))]
 use alloc::borrow::Cow;
 #[cfg(feature = "std")]
-use std::{sync::Arc};
+use std::sync::Arc;
 
 #[test]
 fn test_encode() {

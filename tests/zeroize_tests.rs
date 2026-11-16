@@ -1,13 +1,13 @@
 //!
 //! Tests for the `zeroize_support` feature of the `email_address` crate.
-//! 
+//!
 //! Added by GitHub PR #46: [Support zeroization](https://github.com/johnstonskj/rust-email_address/pull/46)
-//! 
+//!
 #![cfg(feature = "zeroize")]
 
-use email_address::*;
 use claims::{assert_err_eq, assert_ok};
 use core::str::FromStr;
+use email_address::*;
 use zeroize::Zeroize;
 
 #[cfg(feature = "serde_support")]

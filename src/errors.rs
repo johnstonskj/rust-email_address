@@ -1,4 +1,4 @@
-use crate::{AT, DOT, SUB_DOMAIN_MAX_LENGTH, LOCAL_PART_MAX_LENGTH, DOMAIN_MAX_LENGTH};
+use crate::{AT, DOMAIN_MAX_LENGTH, DOT, LOCAL_PART_MAX_LENGTH, SUB_DOMAIN_MAX_LENGTH};
 
 // ------------------------------------------------------------------------------------------------
 // Public Types

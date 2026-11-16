@@ -34,6 +34,8 @@ claims = "0.8.0"
 serde_assert = "0.8.0"
 sqlx-core = "0.9"
 
+# RUSTSEC-2026-0459: Update libsqlite-sys to address security advisory
+# libsqlite3-sys = "0.39"
 
 [lints.rust]
 absolute_paths_not_starting_with_crate = "warn"
