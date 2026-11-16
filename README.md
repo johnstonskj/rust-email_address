@@ -3,13 +3,15 @@
 A Rust crate providing an implementation of an RFC-compliant `EmailAddress`
 newtype.
 
-![MIT License](https://img.shields.io/badge/license-mit-118811.svg)
-![Minimum Rust Version](https://img.shields.io/badge/Min%20Rust-1.40-green.svg)
+[![Apache-2.0 License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![MIT License](https://img.shields.io/badge/license-mit-118811.svg)](https://opensource.org/license/mit)
 [![crates.io](https://img.shields.io/crates/v/email_address.svg)](https://crates.io/crates/email_address)
-[![docs.rs](https://docs.rs/email_address/badge.svg)](https://docs.rs/email_address)
-![Build](https://github.com/johnstonskj/rust-email_address/workflows/Rust/badge.svg)
-![Audit](https://github.com/johnstonskj/rust-email_address/workflows/Security%20audit/badge.svg)
 [![GitHub stars](https://img.shields.io/github/stars/johnstonskj/rust-email_address.svg)](https://github.com/johnstonskj/rust-email_address/stargazers)
+
+[![Rust Workflow](https://github.com/johnstonskj/rust-email_address/actions/workflows/rust.yml/badge.svg)](<https://github.com/johnstonskj/rust-email_address/actions/workflows/rust.yml>)
+[![Security Audit Workflow](https://github.com/johnstonskj/rust-email_address/actions/workflows/security-audit.yml/badge.svg)](<https://github.com/johnstonskj/rust-email_address/actions/workflows/security-audit.yml>)
+[![Coverage Status](https://codecov.io/github/johnstonskj/rust-email_address/graph/badge.svg?token=1HGN6M4KIT)](<https://codecov.io/github/johnstonskj/rust-email_address>)
+[![docs.rs](https://docs.rs/xml_dom/badge.svg)](https://docs.rs/email_address)
 
 Primarily for validation, the `EmailAddress` type is constructed with
 `FromStr::from_str` which will raise any parsing errors. Prior to constructions
