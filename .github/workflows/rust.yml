@@ -89,6 +89,28 @@ jobs:
       run: cargo test --workspace ${{ matrix.test-features }}
  
       
+  no_std:
+    name: Build without std
+    needs: [rustfmt, clippy]
+    strategy:
+      matrix:
+        features: ["", "--features serde_support"]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: thumbv7em-none-eabihf
+        
+    - uses: Swatinem/rust-cache@v2
+      
+    - name: Build
+      run: cargo build --target thumbv7em-none-eabihf --no-default-features ${{ matrix.features }}
+
+      
   benchmarks:
     name: Benchmarks
     needs: [rustfmt, clippy, check_tests]
