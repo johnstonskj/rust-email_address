@@ -14,17 +14,16 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [features]
 default = ["std", "serde_support"]
-std = ["alloc"]
-alloc = []
+std = ["serde?/std"]
 serde_support = ["serde"]
 sqlx = ["sqlx_support"]
 sqlx_support = ["dep:sqlx"]
 sqlx_postgres = ["sqlx", "sqlx/postgres"]
-utoipa_support = ["utoipa"]
+utoipa_support = ["std", "utoipa"]
 zeroize_support = ["zeroize"]
 
 [dependencies]
-serde = { optional = true, version = "1.0" }
+serde = { optional = true, version = "1.0", default-features = false }
 sqlx = { optional = true, version = "0.9" }
 utoipa = { optional = true, version = "6.0" }
 zeroize = { optional = true, version = "1.9", features = ["zeroize_derive"] }

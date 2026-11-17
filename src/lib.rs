@@ -269,20 +269,21 @@
 //!   address is dropped.
 //!
 
-#[cfg(not(feature = "std"))]
+#![cfg_attr(not(feature = "std"), no_std)]
+
 extern crate alloc;
 
+use alloc::{
+    borrow::{Cow, ToOwned},
+    format,
+    string::String,
+};
 use core::{
     cmp::Ordering,
     fmt::{Debug, Display, Formatter},
     hash::Hash,
     str::FromStr,
 };
-
-#[cfg(not(feature = "std"))]
-use alloc::borrow::Cow;
-#[cfg(feature = "std")]
-use std::borrow::Cow;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize, Serializer};
@@ -343,7 +344,7 @@ const MAILTO_URI_PREFIX: &str = "mailto:";
 // ------------------------------------------------------------------------------------------------
 
 impl Display for EmailAddress {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -371,7 +372,7 @@ impl Eq for EmailAddress {}
 // ------------------------------------------------------------------------------------------------
 
 impl Hash for EmailAddress {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         let (left, right) = split_at(&self.0).unwrap();
         left.hash(state);
         // Avoid allocating if right is already lowercase ASCII.
@@ -396,7 +397,7 @@ impl Ord for EmailAddress {
 }
 
 impl PartialOrd for EmailAddress {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -458,7 +459,7 @@ impl<'de> Deserialize<'de> for EmailAddress {
         impl Visitor<'_> for EmailAddressVisitor {
             type Value = EmailAddress;
 
-            fn expecting(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
+            fn expecting(&self, fmt: &mut Formatter<'_>) -> core::fmt::Result {
                 fmt.write_str("string containing a valid email address")
             }
 

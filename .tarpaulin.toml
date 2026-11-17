@@ -9,7 +9,6 @@ all-features = true
 # No std, in debug mode
 [no_std]
 no-default-features = true
-features = "alloc"
 
 # Serde feature, in debug mode
 [default_serde]
