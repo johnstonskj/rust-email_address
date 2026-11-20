@@ -31,6 +31,7 @@ zeroize = { optional = true, version = "1.9", features = ["zeroize_derive"] }
 
 [dev-dependencies]
 claims = "0.8.0"
+roxmltree = "0.20.0"
 serde_assert = "0.8.0"
 sqlx-core = "0.9"
 
